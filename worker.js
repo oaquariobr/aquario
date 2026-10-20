@@ -17,6 +17,13 @@ function estrategiaDoTexto(txt) {
   return null;
 }
 
+// comandos de pérolas: ROLETA, CURAR, RENASCER
+function comandosDoTexto(txt) {
+  const t = String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(), c = [];
+  if (/\bROLETA\b/.test(t)) c.push("roleta"); if (/\bCURAR\b|\bCURA\b/.test(t)) c.push("curar"); if (/\bRENASCER\b/.test(t)) c.push("renascer");
+  return c;
+}
+
 let pronto = false;
 async function schema(env) {
   if (pronto) return;
@@ -26,6 +33,9 @@ async function schema(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS entradas_ts ON entradas(temp, ts)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS vistos (id TEXT PRIMARY KEY)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS estrategias (name TEXT, mare INTEGER, estr TEXT, amigo TEXT, ts INTEGER, PRIMARY KEY(name,mare))"),
+    // quem comentou para cada maré (sequência de dias e renascer) e os comandos de pérolas
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS ativos (name TEXT, mare INTEGER, PRIMARY KEY(mare,name))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS acoes (name TEXT, mare INTEGER, acao TEXT, ts INTEGER, PRIMARY KEY(mare,name,acao))"),
   ]);
   pronto = true;
 }
@@ -56,6 +66,8 @@ async function lerPost(env, mediaId, temp, ini, mare, maxPag, eu) {
       const ts = Date.parse(c.timestamp) || Date.now(), n = norm(c.username);
       if (ts < ini) continue; // comentário de antes desta temporada
       ops.push(env.DB.prepare("INSERT OR IGNORE INTO entradas(name,temp,ts) VALUES(?,?,?)").bind(n, temp, Date.now()));
+      ops.push(env.DB.prepare("INSERT OR IGNORE INTO ativos(name,mare) VALUES(?,?)").bind(n, mare));
+      for (const a of comandosDoTexto(c.text)) ops.push(env.DB.prepare("INSERT OR IGNORE INTO acoes(name,mare,acao,ts) VALUES(?,?,?,?)").bind(n, mare, a, ts));
       const e = estrategiaDoTexto(c.text);
       if (e) ops.push(env.DB.prepare("INSERT INTO estrategias(name,mare,estr,amigo,ts) VALUES(?,?,?,?,?) ON CONFLICT(name,mare) DO UPDATE SET estr=excluded.estr,amigo=excluded.amigo,ts=excluded.ts WHERE excluded.ts>=estrategias.ts").bind(n, mare, e.estr, e.amigo || null, ts));
       novos++;
@@ -141,7 +153,7 @@ async function rotas(req, env, ctx) {
   if (p === "/estado") {
     await promover(env);
     const s = await env.KV.get("estado", "stream");
-    if (!s) return json({ v: 1, temp: 1, mareN: 0, inicio: 0, MARES: 10, hora: 21, snap: 0, vivos: [], mortos: [], assassinos: {}, hall: [] }, 200, { "Cache-Control": "no-store" });
+    if (!s) return json({ v: 1, temp: 1, mareN: 0, inicio: 0, MARES: 14, hora: 21, snap: 0, vivos: [], mortos: [], assassinos: {}, hall: [] }, 200, { "Cache-Control": "no-store" });
     return new Response(s, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=20", ...CORS } });
   }
   if (p === "/mare") { const s = await env.KV.get("mare", "stream"); return s ? new Response(s, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=5", ...CORS } }) : json({}) }
@@ -172,6 +184,8 @@ async function rotas(req, env, ctx) {
     if (!env.ADMIN_KEY || req.headers.get("Authorization") !== "Bearer " + env.ADMIN_KEY) return json({ erro: "sem permissão" }, 401);
     if (p === "/admin/entradas") { const temp = +(url.searchParams.get("temp") || 1), desde = +(url.searchParams.get("desde") || 0); const r = await env.DB.prepare("SELECT rowid AS id,name,ts FROM entradas WHERE temp=? AND rowid>? ORDER BY rowid LIMIT 5000").bind(temp, desde).all(); return json(r.results.map(x => [x.name, x.ts, x.id])) }
     if (p === "/admin/ultima-entrada") { const r = await env.DB.prepare("SELECT MAX(rowid) AS id FROM entradas").first(); return json({ id: (r && r.id) || 0 }) }
+    if (p === "/admin/ativos") { const m = +(url.searchParams.get("mare") || 0), d = url.searchParams.get("depois") || ""; const r = await env.DB.prepare("SELECT name FROM ativos WHERE mare=? AND name>? ORDER BY name LIMIT 5000").bind(m, d).all(); return json(r.results.map(x => x.name)) }
+    if (p === "/admin/acoes") { const m = +(url.searchParams.get("mare") || 0); const r = await env.DB.prepare("SELECT name,acao FROM acoes WHERE mare=?").bind(m).all(); return json(r.results) }
     if (p === "/admin/estrategias") { const m = +(url.searchParams.get("mare") || 0); const r = await env.DB.prepare("SELECT name,estr,amigo FROM estrategias WHERE mare=?").bind(m).all(); return json(r.results) }
     if (p.startsWith("/admin/kv/") && req.method === "PUT") { const k = p.slice(10); if (!["estado", "proximo", "mare"].includes(k)) return json({ erro: "chave" }, 400); await env.KV.put(k, req.body); return json({ ok: true }) }
     if (p === "/admin/meta" && req.method === "POST") { await setMeta(env, await req.json()); return json({ ok: true }) }

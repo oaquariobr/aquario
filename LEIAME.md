@@ -25,6 +25,14 @@ Cada @ que comenta no Instagram [@oaquariobr](https://www.instagram.com/oaquario
 - O elenco da maré é fechado por volta das 20h58. Quem comentar depois aparece no site na hora e luta na maré seguinte.
 - Se o GitHub atrasar, a maré do dia ainda acontece até as 23h, começando 1 minuto depois de o robô rodar.
 
+## Pérolas e renascer
+
+- Temporada de 14 marés. Experiência para os níveis 2 a 5: 40, 110, 210 e 350.
+- Pérolas (carteira por @, guardada no estado): sobreviver +1, cada fuga +1, cada abate +1, sequência de dias comentando +2 no 3º dia e +3 a cada 7 dias. Na temporada nova cada um guarda no máximo 15.
+- Gastos comentando no post do dia: `ROLETA` (8, sorteia outra espécie e volta ao nível 1, uma vez por dia) e `CURAR` (2, recupera metade da vida).
+- Renascer: quem morreu volta como bicho novo sorteado se comentar qualquer coisa no post de um dia seguinte; quem o matou vira rival.
+- O robô dos comentários grava quem comentou em cada maré (tabela `ativos`) e os comandos (tabela `acoes`); a maré oficial aplica tudo antes da batalha e manda a lista em `pre` para o site mostrar.
+
 ## Limites do plano grátis
 
 - Worker: 100 mil pedidos por dia. Cada visita gasta cerca de 3 pedidos ao abrir e mais 1 por minuto com o site aberto, ou seja, aguenta umas 15 a 25 mil visitas por dia. Se passar disso, o plano pago do Workers (US$ 5 por mês) libera 10 milhões de pedidos.

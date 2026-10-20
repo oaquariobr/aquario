@@ -31,7 +31,7 @@ const MARE=(()=>{
   const ESTR={auto:"Automático",atacar:"Atacar",esconder:"Esconder",cardume:"Cardume"};
   const ESTR_TXT={auto:"Sem estratégia: nada muda",atacar:"Caça mais e ganha 50% mais experiência, mas fica mais exposto",
     esconder:"Fica nos corais: é menos caçado e esquiva mais, mas ganha metade da experiência",cardume:"Junto com um amigo que também escolheu você: os dois esquivam mais"};
-  const XP_NIVEL=[0,30,80,150,250]; // xp necessário para os níveis 2..5
+  const XP_NIVEL=[0,40,110,210,350]; // xp necessário para os níveis 2..5
   const MAXN=5;
   function rngOf(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
@@ -113,6 +113,21 @@ const MARE=(()=>{
     ev.sort((x,y)=>x.t-y.t);
     return ev;
   }
-  return {STATS,HAB,ESTR,ESTR_TXT,XP_NIVEL,MAXN,novo,rodar,maxHp,atk,def};
+  // ===== PÉROLAS: prêmio por continuar vivo (não dão força na luta) =====
+  // ganha: sobreviver 1, cada fuga +1, cada abate +1; sequência de dias comentando: +2 no 3º dia e +3 a cada 7 dias
+  // gasta (comentando no post do dia): ROLETA 8 (sorteia outra espécie, volta ao nível 1), CURAR 2 (recupera metade da vida)
+  // guarda até 15 pérolas de uma temporada para a outra
+  const PEROLAS={sobreviver:1,fuga:1,abate:1,seq3:2,seq7:3,roleta:8,curar:2,guardar:15};
+  // quanto cada bicho que estava vivo antes da maré e continuou vivo ganhou nela
+  function ganhos(ev,roster,vivosAntes){const fug={},ab={};
+    for(const e of ev){if(e.type==="fuga")fug[e.b]=(fug[e.b]||0)+1;else if(e.type==="morte")ab[e.a]=(ab[e.a]||0)+1}
+    const out={};for(const n of vivosAntes){const b=roster[n];if(!b||!b.alive)continue;
+      out[n]={sob:PEROLAS.sobreviver,fug:(fug[n]||0)*PEROLAS.fuga,ab:(ab[n]||0)*PEROLAS.abate}}
+    return out}
+  const bonusSeq=seq=>seq===3?PEROLAS.seq3:seq>0&&seq%7===0?PEROLAS.seq7:0;
+  // roleta: bicho novo da espécie sorteada, nível 1, mas guarda o histórico (abates, marés vivo, rival)
+  function trocaEspecie(b,sp){const nb=novo(b.name,sp);nb.kills=b.kills;nb.survived=b.survived;nb.escapes=b.escapes;nb.rival=b.rival;nb.vingou=b.vingou;nb.bornAt=b.bornAt;return nb}
+  function cura(b){const mx=maxHp(b),antes=b.hp;b.hp=Math.min(mx,b.hp+Math.round(mx*.5));return b.hp-antes}
+  return {STATS,HAB,ESTR,ESTR_TXT,XP_NIVEL,MAXN,novo,rodar,maxHp,atk,def,PEROLAS,ganhos,bonusSeq,trocaEspecie,cura};
 })();
 if(typeof module!=="undefined")module.exports=MARE;

@@ -13,6 +13,11 @@ const REGRAS=(()=>{
   const norm=n=>"@"+String(n).trim().replace(/^@+/,"").toLowerCase();
   // a espécie é sorteada pelo @; a cada temporada o sorteio muda
   function especie(name,temp){const r=rng(hash(norm(name)+(temp>1?"#t"+temp:"")))();let a=0;for(const sp of SPECIES){a+=sp.p/100;if(r<a)return sp.id}return SPECIES[0].id}
+  // sorteio com as mesmas chances do começo, a partir de qualquer texto (roleta e renascer usam o @ + o número da maré)
+  function sorteio(chave){const r=rng(hash(String(chave)))();let a=0;for(const sp of SPECIES){a+=sp.p/100;if(r<a)return sp.id}return SPECIES[0].id}
+  // lê os comandos de pérolas no comentário
+  function comandosDoTexto(txt){const t=String(txt||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(),c=[];
+    if(/\bROLETA\b/.test(t))c.push("roleta");if(/\bCURAR\b|\bCURA\b/.test(t))c.push("curar");if(/\bRENASCER\b/.test(t))c.push("renascer");return c}
   const nomeSp=id=>(SPECIES.find(s=>s.id===id)||{nome:id}).nome;
   const nomeDe=b=>b.lvl>=5?LENDA[b.sp]||nomeSp(b.sp):nomeSp(b.sp);
   // lê o comentário e devolve a estratégia escolhida (ou null)
@@ -45,6 +50,6 @@ const REGRAS=(()=>{
     const lendas=vivos.filter(b=>b.lvl>=5).slice(0,5).map(b=>info(b,true));
     const ving=[...vivos,...mortos].filter(b=>b.vingou).slice(0,5).map(b=>({a:b.name,b:b.vingou.name,como:b.vingou.como}));
     return {n:nTemp,mares,sobrev,cacad,lendas,ving,mortos:mortos.length,vivos:vivos.length}}
-  return {SPECIES,LENDA,hash,rng,norm,especie,nomeSp,nomeDe,estrategiaDoTexto,resumo,hall};
+  return {SPECIES,LENDA,hash,rng,norm,especie,sorteio,comandosDoTexto,nomeSp,nomeDe,estrategiaDoTexto,resumo,hall};
 })();
 if(typeof module!=="undefined")module.exports=REGRAS;
