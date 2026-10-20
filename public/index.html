@@ -129,7 +129,9 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 .seg button[aria-pressed="true"]{background:var(--accent);color:#03202c;font-weight:600}
 .cam .ghost[hidden]{display:none}
 .toggle{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center;background:var(--glass);padding:7px 12px;border-radius:999px;border:1px solid var(--glass-line)}
-.warn{max-width:340px;font-size:13px;line-height:1.45;background:rgba(60,20,10,.75);border:1px solid #ffb07a66;color:#ffe2cf;border-radius:10px;padding:10px 12px}
+.warn{max-width:340px;font-size:13px;line-height:1.45;background:rgba(60,20,10,.9);border:1px solid #ffb07a66;color:#ffe2cf;border-radius:12px;padding:12px 14px;pointer-events:auto}
+.warn ol{margin:8px 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.warn button{font-size:12px;padding:5px 12px}
 .credits ul{margin:8px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px;max-width:300px}
 .credits a{color:var(--accent)}
 .credits p{margin:6px 0 0;color:var(--muted);font-size:12px;max-width:300px}
@@ -404,7 +406,7 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
         </ul>
         <p>Modelos simplificados, reorientados e com texturas reduzidas para o aquário.</p>
       </details>
-      <div class="warn" id="warn" hidden>Seu navegador está desenhando o 3D sem a placa de vídeo, por isso trava. Ative a "aceleração de hardware" nas configurações do navegador e reabra a página.</div>
+      <div class="warn" id="warn" hidden role="alert"><b>O aquário está travando?</b><span id="warnTxt"></span><ol id="warnPassos"></ol><button type="button" class="ghost" id="warnOk">Entendi</button></div>
       <div class="dock">
         <button class="ghost" id="camnext" type="button" hidden aria-label="Outra vista">↻<span class="lg"> Outra vista</span></button>
         <div class="seg" role="group" aria-label="Câmera"><button type="button" data-cam="fixa" aria-pressed="false">🎥 Fixa</button><button type="button" data-cam="livre" aria-pressed="false">✋ Livre</button></div>
@@ -604,6 +606,8 @@ const renderer=new THREE.WebGLRenderer({canvas,antialias:!MOBILE&&innerWidth*inn
 let pr=prFor(ql);renderer.setPixelRatio(pr);
 let softGL=false;try{const gl=renderer.getContext(),ext=gl.getExtension("WEBGL_debug_renderer_info");
   const name=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):"";softGL=/swiftshader|llvmpipe|softpipe|basic render|software|microsoft basic/i.test(name)}catch(e){}
+// segundo teste: o navegador avisa quando o WebGL roda com "grande perda de desempenho" (sem aceleração)
+try{if(!softGL){const c=document.createElement("canvas");const t=c.getContext("webgl2",{failIfMajorPerformanceCaveat:true})||c.getContext("webgl",{failIfMajorPerformanceCaveat:true});if(!t)softGL=true}}catch(e){}
 const scene=new THREE.Scene();
 const FOG="#0b4a63";
 scene.fog=new THREE.FogExp2(FOG,.0115);
@@ -1075,7 +1079,8 @@ const esc=x=>String(x).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 const hpCor=r=>r>.5?"#5ee08a":r>.25?"#ffc24a":"#ff5a6e";
 function vitimas(b){if(!b.kills.length)return `<p style="margin:6px 0 0">Ainda não abateu ninguém.</p>`;
   return `<ul class="vit">${b.kills.slice(-6).reverse().map(k=>`<li><b>${esc(k.name)}</b> (${spNome(k.sp)}) · maré #${k.mare}</li>`).join("")}${b.kills.length>6?`<li>…e mais ${b.kills.length-6}</li>`:""}</ul>`}
-function fishCard(f,reveal){const c=RAR[f.s.r],b=f.b,mx=MARE.maxHp(b),S=MARE.STATS[b.sp];
+let cardFish=null;
+function fishCard(f,reveal){cardFish=f;const c=RAR[f.s.r],b=f.b,mx=MARE.maxHp(b),S=MARE.STATS[b.sp];
   const prox=b.lvl>=MARE.MAXN?1:(b.xp-(MARE.XP_NIVEL[b.lvl-1]||0))/(MARE.XP_NIVEL[b.lvl]-(MARE.XP_NIVEL[b.lvl-1]||0));
   const meu=MEU===f.name,E=b.estr||"auto";
   const estrHtml=LIVE&&meu?`<p class="hab" style="margin-bottom:2px"><span>Estratégia da próxima maré</span> · <b id="estrReg">consultando…</b></p>
@@ -1139,7 +1144,7 @@ function focus(f){startFollow(f)}
 $("unfollow").addEventListener("click",stopFollow);
 function act(a,name){
   if(a==="close"){$("card").hidden=true;return}
-  if(a==="follow"){$("card").hidden=true;if(found)startFollow(found);return}
+  if(a==="follow"){$("card").hidden=true;const f=cardFish&&!cardFish.dead&&byName.get(cardFish.name)===cardFish?cardFish:found;if(f)startFollow(f);return}
   if(a==="add"){const f=addFish(name,true);if(!f)return;toast(f);focus(f);fishCard(f,true)}
   if(a==="setmeu"){setMeu(name);const f=byName.get(name);if(f)fishCard(f,false)}
   if(a==="clrmeu"){setMeu(null);$("card").hidden=true}
@@ -1549,6 +1554,20 @@ function fimTemporada(){
   updateTemp();showHall(h,true)}
 function renascer(n){const f=addFish(n);if(!f)return;const k=ASSASSINO.get(n);if(k)f.b.rival=k;return f}
 
+/* ---------- aviso de aceleração de hardware (só no computador, só para quem precisa) ---------- */
+let lentoS=0;
+function avisoAceleracao(certo){
+  let dispensado=false;try{dispensado=localStorage.getItem("aq_warn_ok")==="1"}catch(e){}
+  if(dispensado)return;
+  const ua=navigator.userAgent,edge=/Edg\//.test(ua),ff=/Firefox\//.test(ua),opera=/OPR\//.test(ua);
+  const passos=ff?["Abra o menu ☰ › Configurações","Em Geral › Desempenho, desmarque “Usar configurações de desempenho recomendadas”","Marque “Usar aceleração de hardware quando disponível” e reinicie o Firefox"]
+    :edge?["Cole <b>edge://settings/system</b> na barra de endereço","Ative “Usar aceleração gráfica quando disponível”","Clique em Reiniciar"]
+    :opera?["Cole <b>opera://settings</b> na barra de endereço e procure “aceleração”","Ative “Usar aceleração de hardware quando disponível”","Reinicie o navegador"]
+    :["Cole <b>chrome://settings/system</b> na barra de endereço","Ative “Usar aceleração gráfica quando disponível”","Clique em Reiniciar"];
+  $("warnTxt").textContent=certo?" Seu navegador está desenhando o 3D sem a placa de vídeo. Dá para resolver em 1 minuto:":" Parece que o navegador não está usando a placa de vídeo. Confira se a aceleração está ligada:";
+  $("warnPassos").innerHTML=passos.map(x=>"<li>"+x+"</li>").join("");$("warn").hidden=false;
+  $("warnOk").onclick=()=>{$("warn").hidden=true;try{localStorage.setItem("aq_warn_ok","1")}catch(e){}}}
+
 /* ---------- modo ao vivo: dados reais vindos do robô ---------- */
 let ASSASSINOS={},novosDesde=0;
 // aplica a ficha oficial no bicho (nível muda o tamanho; nível 5 vira lenda)
@@ -1716,7 +1735,9 @@ function loop(){
       else if(fps>57){bad=0;if(++good>=5&&ql<QMAX){applyQuality(ql+1);good=0}}
       else{good=0;bad=0}}
     $("fps").textContent=`${Math.round(fps)} fps · qualidade ${QL[ql].name}`;
-    if(softGL&&!warned){warned=true;$("warn").hidden=false}}
+    // computador lento mesmo na qualidade mínima também recebe a dica
+    if(!MOBILE&&ql===0&&fps<20&&clock.elapsedTime>8)lentoS++;
+    if(!warned&&!MOBILE&&(softGL||lentoS>=8)){warned=true;avisoAceleracao(softGL)}}
   SOM.tick(dt);TIDE.update(dt);
   requestAnimationFrame(loop);
 }
