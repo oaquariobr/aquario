@@ -1,0 +1,19 @@
+# Aquário do Brasil: o site (pasta public) e o robô dos comentários (worker.js) no mesmo Worker da Cloudflare
+name = "aquario-api"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[assets]
+directory = "./public"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "aquario"
+database_id = "971e8948-bcfc-4440-942e-baf6d8d5442f"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "a3a5fe294f7d4ef290a17dbd4a11605b"
