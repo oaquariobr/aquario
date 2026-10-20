@@ -31,6 +31,9 @@ body{background:var(--deep);color:var(--text);font-family:var(--f-ui);overflow:h
 .estr{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:6px 0 4px}
 .estr button{font-size:12px;padding:6px 11px}
 .estr button[aria-pressed="true"]{background:var(--accent);color:#03202c;border-color:var(--accent)}
+.estr-aviso{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(127,200,255,.4);background:rgba(127,200,255,.09)}
+.estr-aviso>b{display:block;color:#9ad6ff;font-size:13px;margin-bottom:4px}.estr-aviso p{margin:4px 0;font-size:12px}
+.estr-aviso button{margin-top:6px;padding:5px 12px;font-size:12px}
 .estr-amigo{display:flex;gap:6px;justify-content:center;margin:6px 0}
 .estr-amigo input{width:150px;font-size:13px;padding:6px 10px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,.06);color:var(--text)}
 .hallp{font-size:13px;max-width:300px}
@@ -606,10 +609,10 @@ const MOBILE=matchMedia("(pointer:coarse)").matches||Math.min(innerWidth,innerHe
 const DPR=devicePixelRatio||1,PIX_BUDGET=MOBILE?1.1e6:2.2e6;
 // níveis de qualidade (0 = mínima … 3 = alta). A nitidez é a última coisa a cair: antes saem efeitos, decoração e detalhe dos bichos distantes
 const QL=[
- {name:"mínima",pr:MOBILE?1:.75,lod:.16,draw:105,snow:0,shafts:false,caus:0,deco:{rock:1,coral:.5,weed:.3,grass:0,small:.3}},
- {name:"baixa",pr:MOBILE?1.25:1,lod:.11,draw:125,snow:450,shafts:false,caus:.7,deco:{rock:1,coral:.75,weed:.55,grass:.35,small:.6}},
- {name:"média",pr:MOBILE?1.6:1.25,lod:.075,draw:145,snow:900,shafts:true,caus:1,deco:{rock:1,coral:1,weed:.8,grass:.7,small:1}},
- {name:"alta",pr:MOBILE?2:1.5,lod:.05,draw:170,snow:1400,shafts:true,caus:1,deco:{rock:1,coral:1,weed:1,grass:1,small:1}}];
+ {name:"mínima",far:0,pr:MOBILE?1:.75,lod:.16,draw:105,snow:0,shafts:false,caus:0,deco:{rock:1,coral:.5,weed:.3,grass:0,small:.3}},
+ {name:"baixa",far:.35,pr:MOBILE?1.25:1,lod:.11,draw:125,snow:450,shafts:false,caus:.7,deco:{rock:1,coral:.75,weed:.55,grass:.35,small:.6}},
+ {name:"média",far:.5,pr:MOBILE?1.6:1.25,lod:.075,draw:145,snow:900,shafts:true,caus:1,deco:{rock:1,coral:1,weed:.8,grass:.7,small:1}},
+ {name:"alta",far:1,pr:MOBILE?2:1.5,lod:.05,draw:170,snow:1400,shafts:true,caus:1,deco:{rock:1,coral:1,weed:1,grass:1,small:1}}];
 let QMAX=MOBILE?2:3,ql=MOBILE?1:3;
 const prFor=l=>Math.max(MOBILE?1:.6,Math.min(DPR,QL[l].pr,Math.sqrt(PIX_BUDGET/(innerWidth*innerHeight))));
 const renderer=new THREE.WebGLRenderer({canvas,antialias:!MOBILE&&innerWidth*innerHeight*DPR*DPR<1.2e6,powerPreference:"high-performance"});
@@ -648,7 +651,7 @@ function setCam(m,save){camMode=m;
   const h=document.getElementById("hint");if(h)h.textContent=m==="fixa"?" · câmera fixa · toque num bicho para ver o @":" · arraste para girar · role ou pince para aproximar · toque num bicho";
   if(save)try{localStorage.setItem("aq_cam",m)}catch(e){}}
 function camFixa(dt,t){
-  const V=VISTAS[vista],k=V.fixo?1:BX/68,port=innerWidth<innerHeight,P=port?V.pv:V.p;
+  const V=VISTAS[vista],k=V.fixo?1:Math.min(1.6,BX/68),port=innerWidth<innerHeight,P=port?V.pv:V.p;
   // balanço lento para a cena não parecer congelada
   vP.set(P[0]*k+Math.sin(t*.11)*4,P[1]+Math.sin(t*.17)*1.5,P[2]*k+Math.cos(t*.09)*3);
   vT.set(V.t[0]*k+Math.sin(t*.07)*3,V.t[1],V.t[2]*k);
@@ -718,6 +721,34 @@ const surf=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.ShaderMater
   uniforms:{uTime:U.time},vertexShader:"varying vec2 vU;varying float vD;void main(){vU=position.xy;vec4 mv=modelViewMatrix*vec4(position,1.);vD=length(mv.xyz);gl_Position=projectionMatrix*mv;}",
   fragmentShader:"uniform float uTime;varying vec2 vU;varying float vD;void main(){vec2 p=vU*.08;float c=sin(p.x*3.+uTime*.7)+sin(p.y*2.7-uTime*.9)+sin((p.x+p.y)*2.2+uTime*.5);c=pow(max(0.,c*.33+.2),2.);float f=exp(-vD*.006);gl_FragColor=vec4(vec3(.55,.9,1.)*(.18+c*.35)*f,1.);}"}));
 surf.rotation.x=Math.PI/2;surf.position.y=52;scene.add(surf);
+// ---------- acima da superfície: céu claro, água vista de cima e um barco de pesca ----------
+// a água vista de cima (só aparece quando a câmera sai da água)
+const topWater=new THREE.Mesh(new THREE.PlaneGeometry(440,440).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:"#1b6f8c",transparent:true,opacity:.8,depthWrite:false}));
+topWater.position.y=52.03;topWater.visible=false;scene.add(topWater);
+// barco de pesca feito com formas simples (poucos triângulos, sem arquivo para baixar)
+const BARCO=(()=>{const g=new THREE.Group(),mat=new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true}),cor=h=>new THREE.Color(h);
+  const casco=new THREE.BoxGeometry(16,3.2,5.6,12,3,2),p=casco.attributes.position;
+  for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);const t=(x+8)/16;let w=1;
+    if(t>.6)w=Math.pow(Math.max(0,1-(t-.6)/.4),.65);if(y<0)w*=.55;z*=w;if(y>0)y+=t*t*1.1;else if(t>.6)y+=(t-.6)*2.6;p.setXYZ(i,x,y,z)}
+  casco.computeVertexNormals();const vermelho=cor("#b5352c"),branco=cor("#f1f0ea"),azul=cor("#1f5fa8");
+  paint(casco,(x,y)=>y<-.5?vermelho:y>1.25?azul:branco);
+  const peca=(geo,c,x,y,z)=>{geo.translate(x,y,z);paint(geo,()=>cor(c));return geo};
+  const partes=[casco,peca(new THREE.BoxGeometry(10,.3,4.4),"#9a6b3f",-2.6,1.45,0),peca(new THREE.BoxGeometry(5,2.6,3.6),"#f4f4f0",-3.2,2.9,0),
+    peca(new THREE.BoxGeometry(5.6,.35,4.2),"#1f5fa8",-3.2,4.35,0),peca(new THREE.BoxGeometry(.12,.9,3),"#22323f",-.66,3.3,0),
+    peca(new THREE.CylinderGeometry(.12,.12,6,6),"#d9d9d4",-3.2,7.4,0),peca(new THREE.BoxGeometry(.05,.8,1.3),"#1e9e4a",-3.2,9.9,.7)];
+  const m=new THREE.Mesh(BGU.mergeBufferGeometries(partes.map(x=>x.index?x.toNonIndexed():x)),mat);g.add(m);scene.add(g);return g})();
+const FOGC=new THREE.Color(FOG),SKYC=new THREE.Color("#bfe3f2"),DOME0={top:dome.material.uniforms.top.value.clone(),mid:dome.material.uniforms.mid.value.clone(),bot:dome.material.uniforms.bot.value.clone()},
+  DOME1={top:new THREE.Color("#3f9be0"),mid:new THREE.Color("#d6f0fa"),bot:new THREE.Color("#1a6a86")};
+let foraAgua=-1;
+function superficie(t){
+  // o barco passeia devagar em círculo, balançando nas ondas
+  const a=t*.018,R0=48;BARCO.position.set(Math.cos(a)*R0,52.45+Math.sin(t*.9)*.18,-18+Math.sin(a)*R0);
+  BARCO.rotation.set(Math.sin(t*.7)*.05,-a+Math.PI,Math.sin(t*.55)*.03);
+  // 0 = embaixo d'água, 1 = fora d'água (transição suave perto da superfície)
+  const k=Math.min(1,Math.max(0,(camera.position.y-51.2)/2));if(k===foraAgua)return;foraAgua=k;
+  scene.fog.color.copy(FOGC).lerp(SKYC,k);scene.fog.density=.0115+(.0016-.0115)*k;
+  const u=dome.material.uniforms;for(const n of ["top","mid","bot"])u[n].value.copy(DOME0[n]).lerp(DOME1[n],k);
+  topWater.visible=k>0;topWater.material.opacity=.8*k;for(const sh of shafts)sh.visible=k<1&&QL[ql].shafts}
 
 const floorH=(x,z)=>-2+Math.sin(x*.05)*1.6+Math.sin(z*.07+1)*1.3+Math.sin((x+z)*.13)*.5+Math.sin(x*.21-z*.17)*.25;
 {const g=new THREE.PlaneGeometry(420,420,140,140);g.rotateX(-Math.PI/2);const p=g.attributes.position;
@@ -850,6 +881,20 @@ if(THREE.GLTFLoader&&window.AQUA_MODELS){
 /* ---------- fundo do mar com modelos reais ---------- */
 // cada peça vem apoiada no chão (y=0), centralizada, com 1 unidade de largura (ou de altura, nas algas)
 const deco={},decoGroups=[],HOMES={rock:[],coral:[],anem:[]};
+// obstáculos guardados numa grade (cada quadradinho de 16x16 sabe quais pedras tem perto), para a busca ser rápida
+// grade fixa de 32x32 quadradinhos cobrindo o fundo (-256..256); cada um guarda a altura do obstáculo mais alto, para descartar rápido
+const OBN=32,OBL=new Array(OBN*OBN).fill(null),OBH=new Float32Array(OBN*OBN).fill(-99);let OBTOP=-99;
+const obIdx=(x,z)=>{const ix=(x+256)>>4,iz=(z+256)>>4;return ix<0||iz<0||ix>=OBN||iz>=OBN?-1:ix*OBN+iz};
+const obAt=(x,z)=>{const i=obIdx(x,z);return i<0?null:OBL[i]};
+const OBG={values:()=>OBL.filter(Boolean)};
+function addObst(x,z,r,top){const o={x,z,r,top};OBTOP=Math.max(OBTOP,top);
+  for(let ax=x-r-4;ax<=x+r+4+15.99;ax+=16)for(let az=z-r-4;az<=z+r+4+15.99;az+=16){const i=obIdx(Math.min(ax,x+r+4),Math.min(az,z+r+4));if(i<0)continue;
+    if(!OBL[i])OBL[i]=[];if(!OBL[i].includes(o))OBL[i].push(o);OBH[i]=Math.max(OBH[i],top)}}
+// empurra um ponto (bicho, alvo ou câmera) para fora dos obstáculos: perto do topo passa por cima, no meio contorna pelo lado
+function desvia(p,raio,folga){if(p.y>OBTOP+folga)return false;const i=obIdx(p.x,p.z);if(i<0||p.y>OBH[i]+folga)return false;const c=OBL[i];if(!c)return false;let mexeu=false;
+  for(const o of c){if(p.y>o.top+folga)continue;const dx=p.x-o.x,dz=p.z-o.z,rr=o.r+raio,d2=dx*dx+dz*dz;if(d2>=rr*rr)continue;
+    if(p.y>o.top-1.5)p.y=o.top+folga;else{const d=Math.sqrt(d2)||.001;p.x=o.x+dx/d*rr;p.z=o.z+dz/d*rr}mexeu=true}
+  return mexeu}
 if(THREE.GLTFLoader&&window.AQUA_MODELS){
   const L=new THREE.GLTFLoader();
   await Promise.all(Object.keys(AQUA_MODELS).filter(k=>k.startsWith("d_")).map(async k=>{
@@ -860,24 +905,29 @@ if(THREE.GLTFLoader&&window.AQUA_MODELS){
 }
 {
   const rd=rng(1977),RD=(a,b)=>a+rd()*(b-a),d=new THREE.Object3D();
-  const plant=(id,list,mode,grp)=>{const ps=deco[id];if(!ps||!list.length)return false;const N=list.length,ims=[];
+  const plant=(id,list,mode,grp,F=0)=>{const ps=deco[id];if(!ps||!list.length)return false;const N=list.length,ims=[];
     const ph=new THREE.InstancedBufferAttribute(new Float32Array(N).map(()=>rd()*6.28),1),sp=new THREE.InstancedBufferAttribute(new Float32Array(N).fill(1),1);
     const M=list.map(([x,z,s,ry,yo=0,tilt=0])=>{d.position.set(x,floorH(x,z)+yo,z);d.rotation.set(tilt,ry,tilt*.6);d.scale.setScalar(s);d.updateMatrix();return d.matrix.clone()});
     for(const [geo,mat] of ps){const g2=geo.clone();g2.setAttribute("aPhase",ph);g2.setAttribute("aSpeed",sp);
       const m2=prep(mat,THREE.DoubleSide);inject(m2,mode||"none",{len:1,caustic:1.4});
       const im=new THREE.InstancedMesh(g2,m2,N);M.forEach((m,i)=>im.setMatrixAt(i,m));im.frustumCulled=false;scene.add(im);ims.push(im)}
-    decoGroups.push({ims,N,grp:grp||"small"});return true};
+    decoGroups.push({ims,N:N-F,F,grp:grp||"small"});return true};
   const longeNavio=(x,z)=>Math.hypot(x-SHIP.x,z-SHIP.z)>SHIP.r;
   const spot=()=>{let x,z;do{x=RD(-115,115);z=rd()<.8?RD(-95,10):RD(10,30)}while(!longeNavio(x,z));return [x,z]};
+  // anel de fora: decoração no resto do fundo do mar (o aquário cresce quando entra muita gente)
+  const spotFar=()=>{let x,z;do{x=RD(-200,200);z=RD(-185,95)}while((Math.abs(x)<118&&z>-98&&z<33)||!longeNavio(x,z));return [x,z]};
   // o navio naufragado, inclinado e meio enterrado na areia
-  plant("ship",[[SHIP.x,SHIP.z,SHIP.s,SHIP.ry,-SHIP.s*.07,SHIP.tilt]],"none","rock");
+  const shipI=[SHIP.x,SHIP.z,SHIP.s,SHIP.ry,-SHIP.s*.07,SHIP.tilt];plant("ship",[shipI],"none","rock");
   // rochas grandes, cada uma com um pequeno jardim de corais em volta
   const rocks=[],corals={brain:[],redcoral:[],staghorn:[],anemone:[],bluecoral:[]},ck=Object.keys(corals);
-  for(let i=0;i<16;i++){const [x,z]=spot(),s=RD(5,15);rocks.push([x,z,s,RD(0,6.28),-s*.12]);
-    const n=3+(rd()*3|0);for(let j=0;j<n;j++){const a=RD(0,6.28),r=s*RD(.5,.85);corals[ck[rd()*ck.length|0]].push([x+Math.cos(a)*r,z+Math.sin(a)*r,RD(2.8,6.5),RD(0,6.28),-.15])}}
-  for(let i=0;i<22;i++){const [x,z]=spot();corals[ck[rd()*ck.length|0]].push([x,z,RD(2.4,5.5),RD(0,6.28),-.15])}
-  if(plant("rock",rocks,"none","rock")&&window.__rocks)window.__rocks.visible=false;
-  for(const k of ck)plant(k,corals[k],"none","coral");
+  const rocha=far=>{const [x,z]=far?spotFar():spot(),s=RD(5,15);rocks.push([x,z,s,RD(0,6.28),-s*.12]);
+    const n=far?1+(rd()*2|0):3+(rd()*3|0);for(let j=0;j<n;j++){const a=RD(0,6.28),r=s*RD(.5,.85);corals[ck[rd()*ck.length|0]].push([x+Math.cos(a)*r,z+Math.sin(a)*r,RD(2.8,6.5),RD(0,6.28),-.15])}};
+  const coral=far=>{const [x,z]=far?spotFar():spot();corals[ck[rd()*ck.length|0]].push([x,z,RD(2.4,5.5),RD(0,6.28),-.15])};
+  for(let i=0;i<16;i++)rocha(false);for(let i=0;i<22;i++)coral(false);
+  const nR=rocks.length,nC={};for(const k of ck)nC[k]=corals[k].length;
+  for(let i=0;i<12;i++)rocha(true);for(let i=0;i<10;i++)coral(true);
+  if(plant("rock",rocks,"none","rock",rocks.length-nR)&&window.__rocks)window.__rocks.visible=false;
+  for(const k of ck)plant(k,corals[k],"none","coral",corals[k].length-nC[k]);
   // lugares que servem de "casa" para quem vive perto do fundo
   if(deco.rock)HOMES.rock=rocks.map(r=>[r[0],r[1]]);
   // as garoupas também moram em volta do navio
@@ -886,12 +936,24 @@ if(THREE.GLTFLoader&&window.AQUA_MODELS){
   if(deco.anemone)HOMES.anem=[...corals.anemone,...(deco.bluecoral?corals.bluecoral:[])].map(c=>[c[0],c[1]]);
   // algas balançando e tufos de capim marinho
   const weeds=[];for(let i=0;i<34;i++){const x=RD(-118,118),z=rd()<.85?RD(-95,-25):RD(-25,15),n=1+(rd()*2|0);if(!longeNavio(x,z))continue;for(let j=0;j<n;j++)weeds.push([x+RD(-2.5,2.5),z+RD(-2.5,2.5),RD(3.5,8),RD(0,6.28),-.2,RD(-.06,.06)])}
-  if(plant("seaweed",weeds,"sway","weed")&&window.__kelp)window.__kelp.count=40;
-  plant("seagrass",Array.from({length:30},()=>{const [x,z]=spot();return [x,z,RD(3,6.5),RD(0,6.28),-.1]}),"sway","grass");
+  const nW=weeds.length;for(let i=0;i<26;i++){const [x,z]=spotFar(),n=1+(rd()*2|0);for(let j=0;j<n;j++)weeds.push([x+RD(-2.5,2.5),z+RD(-2.5,2.5),RD(3.5,8),RD(0,6.28),-.2,RD(-.06,.06)])}
+  if(plant("seaweed",weeds,"sway","weed",weeds.length-nW)&&window.__kelp)window.__kelp.count=40;
+  const cheio=(n,nf,f)=>{const a=Array.from({length:n},()=>f(spot()));for(let i=0;i<nf;i++)a.push(f(spotFar()));return a};
+  plant("seagrass",cheio(30,12,([x,z])=>[x,z,RD(3,6.5),RD(0,6.28),-.1]),"sway","grass",12);
   // detalhes pequenos no chão
-  plant("starfish",Array.from({length:14},()=>{const [x,z]=spot();return [x,z,RD(.8,1.6),RD(0,6.28),.02]}));
-  plant("urchin",Array.from({length:12},()=>{const [x,z]=spot();return [x,z,RD(.7,1.3),RD(0,6.28),-.15]}));
-  plant("shell",Array.from({length:14},()=>{const [x,z]=spot();return [x,z,RD(.6,1.2),RD(0,6.28),-.05]}));
+  plant("starfish",cheio(14,6,([x,z])=>[x,z,RD(.8,1.6),RD(0,6.28),.02]),"none","small",6);
+  plant("urchin",cheio(12,5,([x,z])=>[x,z,RD(.7,1.3),RD(0,6.28),-.15]),"none","small",5);
+  plant("shell",cheio(14,6,([x,z])=>[x,z,RD(.6,1.2),RD(0,6.28),-.05]),"none","small",6);
+  // ---------- obstáculos: pedras, corais e o navio viram cilindros simples para os bichos e a câmera contornarem ----------
+  const caixa=id=>{const b=new THREE.Box3();for(const [g] of deco[id]||[]){g.computeBoundingBox();b.union(g.boundingBox)}return b};
+  const obst=(id,list,minR)=>{if(!deco[id])return;const b=caixa(id),sz=b.getSize(new THREE.Vector3()),cx=(b.min.x+b.max.x)/2,cz=(b.min.z+b.max.z)/2;
+    for(const [x,z,sc,ry,yo=0] of list){const r=Math.max(sz.x,sz.z)*.5*sc*.8;if(r<minR)continue;const c=Math.cos(ry),sn=Math.sin(ry);
+      addObst(x+(cx*c+cz*sn)*sc,z+(-cx*sn+cz*c)*sc,r,floorH(x,z)+yo+b.max.y*sc*.92)}};
+  obst("rock",rocks,1.5);for(const k of ck)obst(k,corals[k],1.6);
+  // navio: uma fileira de círculos ao longo do casco
+  if(deco.ship){const b=caixa("ship"),sz=b.getSize(new THREE.Vector3()),[x,z,sc,ry,yo,tl]=shipI,lx=sz.x>=sz.z,L=(lx?sz.x:sz.z)*sc,W=(lx?sz.z:sz.x)*sc,n=Math.ceil(L/W*1.6),c=Math.cos(ry),sn=Math.sin(ry),top=floorH(x,z)+yo+b.max.y*sc*Math.cos(tl)*.85;
+    const cx=(b.min.x+b.max.x)/2*sc,cz=(b.min.z+b.max.z)/2*sc;
+    for(let i=0;i<n;i++){const u=-L/2+L*(i+.5)/n,lxp=(lx?u:0)+cx,lzp=(lx?0:u)+cz;addObst(x+lxp*c+lzp*sn,z-lxp*sn+lzp*c,W*.5*.85,top)}}
 }
 
 /* ---------- esqueletos: quem morre na maré fica no fundo do mar com o @ ---------- */
@@ -973,7 +1035,9 @@ function darNivel(f,l){const b=f.b;b.lvl=l;b.xp=MARE.XP_NIVEL[l-1]||0;b.hp=MARE.
 const fish=[],byName=new Map(),dummy=new THREE.Object3D();dummy.rotation.order="YZX";
 let BX=68,BZ0=-48,BZ1=28;const BY0=3,BY1=42;
 // o aquário cresce com a população: até 3x mais largo e fundo quando lota
-function updateBounds(extra=0){const k=Math.min(3,Math.max(1,Math.sqrt((fish.length+extra)/450)));BX=68*k;BZ0=-48*k;BZ1=28*k}
+function updateBounds(extra=0){const k=Math.min(2.9,Math.max(1,Math.sqrt((fish.length+extra)/300)));BX=68*k;BZ0=-48*k;BZ1=28*k}
+// quanto maior o aquário, mais espalhados ficam os bichos em volta da casa (pedra, coral, anêmona)
+const HK=()=>Math.min(2.2,BX/68);
 // hábitos de cada espécie: faixa de profundidade (y), território (casa e raio) e pausas
 const HABITO={
   palhaco:{home:"anem",r:5,y:[1.2,4],floor:1,rest:.35},
@@ -983,9 +1047,10 @@ const HABITO={
   tartaruga:{y:[6,36],surf:.3},tubarao:{y:[8,34]},orca:{y:[12,40]},baleia:{y:[20,42]},megalodon:{y:[4,22]},
   sardinha:{y:[8,36]},golfinho:{y:[10,40]}};
 function newTarget(f){const H=HABITO[f.s.id]||{};let x,z,y;
-  if(f.home){x=f.home[0]+(Math.random()*2-1)*H.r;z=f.home[1]+(Math.random()*2-1)*H.r}else{x=R(-BX,BX);z=R(BZ0,BZ1)}
+  if(f.home){const hr=H.r*HK();x=f.home[0]+(Math.random()*2-1)*hr;z=f.home[1]+(Math.random()*2-1)*hr}else{x=R(-BX,BX);z=R(BZ0,BZ1)}
   if(H.floor)y=floorH(x,z)+R(H.y[0],H.y[1]);
   else{if(H.surf&&Math.random()<H.surf)y=R(42,48);else if(H.y)y=R(H.y[0],H.y[1]);else y=R(BY0,BY1);y=Math.max(y,BY0+f.L*.15)}
+  {const q={x,y,z};desvia(q,(f.L||2)*.4+1,1);x=q.x;y=q.y;z=q.z}
   f.tx=x;f.ty=y;f.tz=z;f.tt=R(6,18);
   if(H.rest&&!f.chase&&Math.random()<H.rest){f.rest=NOW+R(3,9);if(f.s.id==="raia"){f.tx=f.x;f.tz=f.z;f.ty=floorH(f.x,f.z)}}}
 // cardumes (sardinhas) e grupos (golfinhos): um "líder" invisível passeia e cada membro ocupa um lugar em volta dele
@@ -1009,13 +1074,16 @@ function addFish(name,near,test,spId){
   const H=HABITO[s.id];
   if(H&&H.home){if(near)f.home=[f.x,f.z];
     else{let pool=H.home==="any"?null:HOMES[H.home];if(pool&&!pool.length)pool=HOMES.coral;
+      // só casas dentro do aquário atual (o fundo é maior que o aquário quando tem pouca gente)
+      if(pool){const ok=pool.filter(h=>Math.abs(h[0])<BX+15&&h[1]>BZ0-15&&h[1]<BZ1+15);if(ok.length)pool=ok}
       const p=pool&&pool.length?pool[r()*pool.length|0]:[-BX+r()*BX*2,BZ0+r()*(BZ1-BZ0)];
-      f.home=[p[0],p[1]];f.x=p[0]+(r()-.5)*H.r;f.z=p[1]+(r()-.5)*H.r;f.y=floorH(f.x,f.z)+H.y[0]+r()*(H.y[1]-H.y[0])}}
+      f.home=[p[0],p[1]];const hr=H.r*HK();f.x=p[0]+(r()-.5)*hr;f.z=p[1]+(r()-.5)*hr;f.y=floorH(f.x,f.z)+H.y[0]+r()*(H.y[1]-H.y[0])}}
   else f.y=Math.max(f.y,BY0+f.L*.15);
   newTarget(f);if(!near)joinSchool(f);
   if(test)f.test=true;
   list.push(f);fish.push(f);byName.set(n,f);
   if(s.mega){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:"#ff3a50",transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false}));scene.add(g);megaGlows.push([g,f])}
+  if((fish.length&31)===0)updateBounds();
   countsDirty=true;return f;
 }
 function step(f,dt,t){
@@ -1041,6 +1109,14 @@ function step(f,dt,t){
   const sp=f.speed*(1+.25*Math.sin(t*.7+f.seed))*boost;
   f.x+=Math.cos(f.yaw)*Math.cos(f.pitch)*sp*dt;f.z-=Math.sin(f.yaw)*Math.cos(f.pitch)*sp*dt;f.y+=Math.sin(f.pitch)*sp*dt;
   // a raia é larga: mede o chão no centro, nas pontas das asas e na frente, e deixa espaço para o bater das asas
+  // pedras, corais e navio: olha um pouco à frente e vira para o lado; se encostar, desliza pela borda (nada bem perto, sem atravessar)
+  // (em quadros alternados: num olha à frente, no outro empurra para fora; uma busca por quadro)
+  if(f.y<OBTOP+2){const ah=f.L+3,ax=f.x+Math.cos(f.yaw)*ah,az=f.z-Math.sin(f.yaw)*ah,ia=(frameN+(f.seed*1e3|0))&1?-1:obIdx(ax,az),c=ia>=0&&f.y<OBH[ia]+1?OBL[ia]:null;
+    if(c)for(const o of c){if(f.y>o.top+1)continue;const dx=ax-o.x,dz=az-o.z,rr=o.r+f.L*.35;if(dx*dx+dz*dz>=rr*rr)continue;
+      const fora=Math.atan2(-(f.z-o.z),f.x-o.x);let a1=fora+1.5708,a2=fora-1.5708;
+      const d1=Math.abs(Math.atan2(Math.sin(a1-f.yaw),Math.cos(a1-f.yaw))),d2=Math.abs(Math.atan2(Math.sin(a2-f.yaw),Math.cos(a2-f.yaw)));
+      const alvo=d1<d2?a1:a2,dy=Math.atan2(Math.sin(alvo-f.yaw),Math.cos(alvo-f.yaw)),tv=6*dt;f.yaw+=Math.max(-tv,Math.min(tv,dy));break}
+    if(ia<0&&desvia(f,f.L*.3,f.L*.15)&&!f.chase&&f.tt>1)f.tt=Math.min(f.tt,1)}
   // o chão nunca passa de 1,65: longe dele não precisa medir
   if(f.y>2.7+f.L*.17)return;
   let fl;if(s.id==="raia"){const w=f.L*.45,sx=Math.sin(f.yaw)*w,sz=Math.cos(f.yaw)*w,fx=Math.cos(f.yaw)*f.L*.2,fz=-Math.sin(f.yaw)*f.L*.2;
@@ -1101,8 +1177,15 @@ let cardFish=null;
 function fishCard(f,reveal){cardFish=f;const c=RAR[f.s.r],b=f.b,mx=MARE.maxHp(b),S=MARE.STATS[b.sp];
   const prox=b.lvl>=MARE.MAXN?1:(b.xp-(MARE.XP_NIVEL[b.lvl-1]||0))/(MARE.XP_NIVEL[b.lvl]-(MARE.XP_NIVEL[b.lvl-1]||0));
   const meu=MEU===f.name,E=b.estr||"auto";
-  const estrHtml=LIVE&&meu?`<p class="hab" style="margin-bottom:2px"><span>Estratégia da próxima maré</span> · <b id="estrReg">consultando…</b></p>
-     <p style="margin:4px 0 10px;font-size:12px">Para escolher, comente <b>ATACAR</b>, <b>ESCONDER</b> ou <b>CARDUME @amigo</b> no post do dia do @oaquariobr até as 20h55. <button type="button" class="ghost" data-act="guiaestr" style="padding:3px 10px;font-size:11px">Ver guia</button></p>`
+  const rodando=window.TIDE&&TIDE.running,vivo=!f.dead&&b.alive!==false;
+  const estrHtml=rodando||!vivo?(E!=="auto"?`<p class="hab"><span>Estratégia</span> · ${MARE.ESTR[E]}</p>`:"")
+    :LIVE&&meu?`<div class="estr-aviso"><b>⚔ Defina a estratégia da próxima maré</b>
+     <p>Agora: <b id="estrReg">consultando…</b></p>
+     <p>Comente <b>ATACAR</b>, <b>ESCONDER</b> ou <b>CARDUME @amigo</b> no post do dia do @oaquariobr até as 20h55. Sem comentário, seu bicho luta no automático.</p>
+     <button type="button" data-act="guiaestr">Ver as estratégias</button></div>`
+    :!meu?`<div class="estr-aviso"><b>⚔ É o seu bicho?</b>
+     <p>Toque em <b>É o meu @</b> e escolha como ele luta na próxima maré: <b>Atacar</b>, <b>Esconder</b> ou <b>Cardume</b>. Veja o que cada uma faz em Menu › Estratégias.</p>
+     <button type="button" data-act="guiaestr">Ver as estratégias</button></div>`
     :meu&&!(window.TIDE&&TIDE.running)?`<p class="hab" style="margin-bottom:2px"><span>Estratégia da próxima maré</span></p>
      <div class="estr">${Object.entries(MARE.ESTR).map(([k,v])=>`<button type="button" class="ghost" data-act="estr" data-name="${k}" aria-pressed="${E===k}">${v}</button>`).join("")}</div>
      <div class="estr-amigo"><input id="amigoIn" placeholder="@amigo do cardume" aria-label="@ do amigo do cardume" autocomplete="off" autocapitalize="off" value="${esc(b.amigo||"")}"></div>
@@ -1284,8 +1367,8 @@ if(!LIVE)setInterval(()=>{if(document.hidden)return;const f=addFish(randName(rng
 /* ---------- loop ---------- */
 function applyQuality(l){
   ql=l;const Q=QL[l];pr=prFor(l);renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight,false);
-  snowG.setDrawRange(0,Q.snow);for(const s of shafts)s.visible=Q.shafts;U.caus.value=Q.caus;
-  for(const g of decoGroups){const n=Math.round(g.N*Q.deco[g.grp]);for(const im of g.ims){im.count=n;im.visible=n>0}}
+  snowG.setDrawRange(0,Q.snow);for(const s of shafts)s.visible=Q.shafts;foraAgua=-1;U.caus.value=Q.caus;
+  for(const g of decoGroups){const c=Math.round(g.N*Q.deco[g.grp]),n=c<g.N?c:g.N+Math.round((g.F||0)*Q.far);for(const im of g.ims){im.count=n;im.visible=n>0}}
 }
 applyQuality(ql);
 
@@ -1751,7 +1834,10 @@ function loop(){
   if(camGoal&&!follow){const a=Math.min(1,dt*2.2);camera.position.lerp(camGoal.p,a);controls.target.lerp(camGoal.t,a);if(camera.position.distanceTo(camGoal.p)<.3)camGoal=null}
   else if(camMode==="fixa"&&!follow)camFixa(dt,t);
   SKEL.update(camera.position);
-  controls.update();renderer.render(scene,camera);
+  controls.update();
+  {const cp=camera.position,lim=205;if(cp.x>lim)cp.x=lim;else if(cp.x<-lim)cp.x=-lim;if(cp.z>lim)cp.z=lim;else if(cp.z<-lim)cp.z=-lim;
+   desvia(cp,1.2,1.5);const fy=floorH(cp.x,cp.z)+1.6;if(cp.y<fy)cp.y=fy}
+  superficie(t);renderer.render(scene,camera);
   if(frameN++%5===0)pickTags();drawTags();
   if(countsDirty)updateCounts();
   fpsAcc+=clock.elapsedTime-lastT;lastT=clock.elapsedTime;fpsN++;
