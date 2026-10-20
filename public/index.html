@@ -434,6 +434,7 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js"></script>
 <script src="models.js"></script>
 <script>
 (async()=>{
@@ -486,7 +487,7 @@ const MARE=(()=>{
   const ESTR={auto:"Automático",atacar:"Atacar",esconder:"Esconder",cardume:"Cardume"};
   const ESTR_TXT={auto:"Sem estratégia: nada muda",atacar:"Caça mais e ganha 50% mais experiência, mas fica mais exposto",
     esconder:"Fica nos corais: é menos caçado e esquiva mais, mas ganha metade da experiência",cardume:"Junto com um amigo que também escolheu você: os dois esquivam mais"};
-  const XP_NIVEL=[0,40,100,180,300]; // xp necessário para os níveis 2..5
+  const XP_NIVEL=[0,30,80,150,250]; // xp necessário para os níveis 2..5
   const MAXN=5;
   function rngOf(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
@@ -561,8 +562,8 @@ const MARE=(()=>{
     });
     // fim da maré: fome, recuperação e experiência por sobreviver
     for(const b of vivos){if(!b.alive)continue;
-      if(STATS[b.sp].hab==="fome"&&!comeu.has(b)){b.hp=Math.max(1,b.hp-Math.round(maxHp(b)*.12))}
-      b.hp=Math.min(maxHp(b),b.hp+Math.round(maxHp(b)*.3));b.survived++;ganhaXp(b,b.estr==="esconder"?5:mutuo(b)?15:10,ev,dur)}
+      if(STATS[b.sp].hab==="fome"&&!comeu.has(b)){b.hp=Math.max(1,b.hp-Math.round(maxHp(b)*.15))}
+      b.hp=Math.min(maxHp(b),b.hp+Math.round(maxHp(b)*(STATS[b.sp].hab==="fome"&&!comeu.has(b)?.1:.3)));b.survived++;ganhaXp(b,b.estr==="esconder"?10:mutuo(b)?30:20,ev,dur)}
     // a estratégia vale só para esta maré: na próxima a pessoa escolhe de novo
     for(const b of vivos){b.estr="auto";b.amigo=null}
     ev.sort((x,y)=>x.t-y.t);
@@ -588,6 +589,15 @@ const sm=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t
 if(!window.THREE){document.getElementById("loading").textContent="Não foi possível carregar o 3D neste navegador.";throw new Error("three")}
 const loading=document.getElementById("loading");
 const BGU=THREE.BufferGeometryUtils;
+// modelos comprimidos (meshopt): o leitor descomprime e volta os números para o formato normal antes de montar os bichos
+{const DEN={Int8Array:127,Uint8Array:255,Int16Array:32767,Uint16Array:65535,Int32Array:2147483647,Uint32Array:4294967295};
+ const deq=geo=>{for(const nm of Object.keys(geo.attributes)){const a=geo.attributes[nm],il=a.isInterleavedBufferAttribute,src=il?a.data.array:a.array;
+   if(!il&&src instanceof Float32Array)continue;const n=a.count,sz=a.itemSize,st=il?a.data.stride:sz,of=il?a.offset:0,dv=a.normalized?DEN[src.constructor.name]||1:1,out=new Float32Array(n*sz);
+   for(let i=0;i<n;i++)for(let k=0;k<sz;k++){let v=src[i*st+of+k];if(a.normalized){v/=dv;if(v<-1)v=-1}out[i*sz+k]=v}
+   geo.setAttribute(nm,new THREE.BufferAttribute(out,sz))}};
+ if(THREE.GLTFLoader){const P=THREE.GLTFLoader.prototype.parse;
+  THREE.GLTFLoader.prototype.parse=function(d,path,ok,no){if(window.MeshoptDecoder)this.setMeshoptDecoder(MeshoptDecoder);
+   return P.call(this,d,path,g=>{g.scene.traverse(o=>{if(o.isMesh)deq(o.geometry)});ok(g)},no)}}}
 const col=h=>new THREE.Color(h);
 
 /* ---------- renderer / cena ---------- */
@@ -1014,7 +1024,7 @@ function step(f,dt,t){
   if(f.dead){f.roll=Math.min(Math.PI,(f.roll||0)+dt*1.6);const fl=floorH(f.x,f.z)+f.L*.1;if(f.y>fl)f.y=Math.max(fl,f.y-dt*(2.5+f.L*.25));f.pitch*=.96;return}
   let boost=1,turnK=1;
   if(f.chase){const v=f.chase.v;if(v.dead||t>f.chase.until)f.chase=null;
-    else{f.tx=v.x;f.ty=v.y;f.tz=v.z;f.tt=5;const d=Math.hypot(v.x-f.x,v.y-f.y,v.z-f.z);
+    else{f.tx=v.x;f.ty=v.y;f.tz=v.z;f.tt=5;const d=Math.sqrt((v.x-f.x)**2+(v.y-f.y)**2+(v.z-f.z)**2);
       boost=Math.min(9,Math.max(2.2,d/Math.max(.5,f.chase.bite-t)/f.speed));turnK=5;if(d<(f.L+v.L)*.4)boost=.25}}
   if(f.panic>t){boost=Math.max(boost,2);turnK=Math.max(turnK,3)}
   else if(f.slow>t)boost=.45;
@@ -1022,8 +1032,8 @@ function step(f,dt,t){
   let schoolYaw=null;const inSchool=f.school&&!f.chase&&!(f.panic>t);
   if(inSchool){const sc=f.school,cy=Math.cos(sc.yaw),sy=Math.sin(sc.yaw),o=f.off;
     f.tx=sc.x+cy*o[0]+sy*o[2];f.ty=sc.y+o[1]+Math.sin(t*1.3+f.seed)*.35;f.tz=sc.z-sy*o[0]+cy*o[2];f.tt=5;
-    const d=Math.hypot(f.tx-f.x,f.ty-f.y,f.tz-f.z);boost=Math.max(.4,Math.min(4,sc.speed*(.92+d*.3)/f.speed));turnK=4;if(d<1.6)schoolYaw=sc.yaw}
-  f.tt-=dt;const dx=f.tx-f.x,dy=f.ty-f.y,dz=f.tz-f.z,hd=Math.hypot(dx,dz);
+    const d=Math.sqrt((f.tx-f.x)**2+(f.ty-f.y)**2+(f.tz-f.z)**2);boost=Math.max(.4,Math.min(4,sc.speed*(.92+d*.3)/f.speed));turnK=4;if(d<1.6)schoolYaw=sc.yaw}
+  f.tt-=dt;const dx=f.tx-f.x,dy=f.ty-f.y,dz=f.tz-f.z,hd=Math.sqrt((dx)**2+(dz)**2);
   if(!f.chase&&!inSchool&&(hd<f.L*1.5+2||f.tt<0))newTarget(f);
   const want=schoolYaw!=null?schoolYaw:Math.atan2(-dz,dx);let dyaw=want-f.yaw;dyaw=Math.atan2(Math.sin(dyaw),Math.cos(dyaw));
   const turn=1.4/Math.sqrt(f.L)*turnK;f.yaw+=Math.max(-turn*dt,Math.min(turn*dt,dyaw));
@@ -1031,6 +1041,8 @@ function step(f,dt,t){
   const sp=f.speed*(1+.25*Math.sin(t*.7+f.seed))*boost;
   f.x+=Math.cos(f.yaw)*Math.cos(f.pitch)*sp*dt;f.z-=Math.sin(f.yaw)*Math.cos(f.pitch)*sp*dt;f.y+=Math.sin(f.pitch)*sp*dt;
   // a raia é larga: mede o chão no centro, nas pontas das asas e na frente, e deixa espaço para o bater das asas
+  // o chão nunca passa de 1,65: longe dele não precisa medir
+  if(f.y>2.7+f.L*.17)return;
   let fl;if(s.id==="raia"){const w=f.L*.45,sx=Math.sin(f.yaw)*w,sz=Math.cos(f.yaw)*w,fx=Math.cos(f.yaw)*f.L*.2,fz=-Math.sin(f.yaw)*f.L*.2;
     fl=Math.max(floorH(f.x,f.z),floorH(f.x+sx,f.z+sz),floorH(f.x-sx,f.z-sz),floorH(f.x+fx,f.z+fz))+f.L*.16+.3}
   else fl=floorH(f.x,f.z)+f.L*.12+.8;
@@ -1039,19 +1051,25 @@ function step(f,dt,t){
 const frustum=new THREE.Frustum(),pmat=new THREE.Matrix4(),sph=new THREE.Sphere();
 function upload(T){for(const m of T.ims)m.count=T.n;
   for(const [a,k] of [[T.mat,16],[T.col,3],[T.ph,1],[T.sp,1]]){a.updateRange.offset=0;a.updateRange.count=Math.max(1,T.n)*k;a.needsUpdate=true}}
+// monta a matriz (posição, rotação YZX e escala) direto no buffer: mesmo resultado do Object3D, bem mais rápido
+function compor(o,j,x,y,z,px,py,pz,s){const a=Math.cos(x),b=Math.sin(x),c=Math.cos(y),d=Math.sin(y),e=Math.cos(z),f=Math.sin(z),ac=a*c,ad=a*d,bc=b*c,bd=b*d;
+  o[j]=c*e*s;o[j+1]=f*s;o[j+2]=-d*e*s;o[j+3]=0;o[j+4]=(bd-ac*f)*s;o[j+5]=a*e*s;o[j+6]=(ad*f+bc)*s;o[j+7]=0;o[j+8]=(bc*f+ad)*s;o[j+9]=-b*e*s;o[j+10]=(ac-bd*f)*s;o[j+11]=0;o[j+12]=px;o[j+13]=py;o[j+14]=pz;o[j+15]=1}
 // move os bichos e distribui cada um no grupo certo (perto, longe ou invisível)
 function layout(dt,t){
   const cp=camera.position,Q=QL[ql],K2=Q.lod*Q.lod,D2=Q.draw*Q.draw;
   pmat.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(pmat);
   for(const sc of SCHOOLS)if(sc.n>0)step(sc,dt,t);
   SPECIES.forEach((s,i)=>{const {hi,lo}=tiers[i];hi.n=0;if(lo)lo.n=0;const sc=s.model?s.len:1;
-    for(const f of lists[i]){step(f,dt,t);
+    for(const f of lists[i]){
+      // quem está fora da tela anda em passos de 3 quadros (ninguém vê, e economiza processamento)
+      f.acc=(f.acc||0)+dt;
+      if(!f.fora||f===found||f.chase||f.panic>t||(frameN+(f.seed*1e3|0))%3===0){step(f,Math.min(.15,f.acc),t);f.acc=0}
       const dx=f.x-cp.x,dy=f.y-cp.y,dz=f.z-cp.z,d2=dx*dx+dy*dy+dz*dz;
-      if(d2>D2&&f!==found)continue;
-      sph.center.set(f.x,f.y,f.z);sph.radius=f.L*.75;if(!frustum.intersectsSphere(sph))continue;
+      if(d2>D2&&f!==found){f.fora=true;continue}
+      sph.center.set(f.x,f.y,f.z);sph.radius=f.L*.75;if(!frustum.intersectsSphere(sph)){f.fora=true;continue}
+      f.fora=false;
       const T=(!lo||f===found||f.L*f.L>K2*d2)?hi:lo,j=T.n++;
-      dummy.position.set(f.x,f.y,f.z);dummy.rotation.set(f.roll||0,f.yaw,f.pitch);dummy.scale.setScalar(f.size*sc);dummy.updateMatrix();
-      dummy.matrix.toArray(T.mat.array,j*16);T.ph.array[j]=f.seed;T.sp.array[j]=f.spd;const c=T.col.array;let cr=f.c,cg=f.c,cb=f.c;if(f.flash>t){cr*=2.2;cg*=.35;cb*=.35}else if(f.dead){cr*=.5;cg*=.48;cb*=.5}else if(f.lend){cr*=1.28;cg*=1.12;cb*=.62}c[j*3]=cr;c[j*3+1]=cg;c[j*3+2]=cb;T.slots[j]=f}
+      compor(T.mat.array,j*16,f.roll||0,f.yaw,f.pitch,f.x,f.y,f.z,f.size*sc);T.ph.array[j]=f.seed;T.sp.array[j]=f.spd;const c=T.col.array;let cr=f.c,cg=f.c,cb=f.c;if(f.flash>t){cr*=2.2;cg*=.35;cb*=.35}else if(f.dead){cr*=.5;cg*=.48;cb*=.5}else if(f.lend){cr*=1.28;cg*=1.12;cb*=.62}c[j*3]=cr;c[j*3+1]=cg;c[j*3+2]=cb;T.slots[j]=f}
     upload(hi);if(lo)upload(lo);
   });
 }
@@ -1219,31 +1237,35 @@ function pop(f,txt,kind){if(!f||QUIET)return;const el=popPool.find(e=>e.hidden);
 let tagged=[],frameN=0,NOW=0;const v3=new THREE.Vector3();
 function pickTags(){
   const cp=camera.position,lim=showAll?(MOBILE?24:44):(MOBILE?8:14);
-  const sorted=fish.map(f=>[f,(f.x-cp.x)**2+(f.y-cp.y)**2+(f.z-cp.z)**2]).sort((a,b)=>a[1]-b[1]);
+  const R2=(showAll?120:55)**2,sorted=[];
+  for(const f of fish){const dx=f.x-cp.x,dy=f.y-cp.y,dz=f.z-cp.z,d=dx*dx+dy*dy+dz*dz;if(d<R2)sorted.push([f,d])}
+  sorted.sort((a,b)=>a[1]-b[1]);
   const set=new Set();if(found)set.add(found);
   for(const f of fish)if(f.hpShow>NOW&&set.size<12)set.add(f);
   for(const f of fish)if((f.s.r==="Lendário"||f.s.r==="Mítico"||f.lend)&&set.size<14)set.add(f);
   for(const[f,d]of sorted){if(set.size>=lim+ (found?1:0)+6)break;if(d<(showAll?120:55)**2)set.add(f)}
   tagged=[...set];
 }
+// só mexe no estilo quando o valor muda (evita trabalho extra do navegador a cada quadro)
+const stS=(el,k,v)=>{if(el["_"+k]!==v){el["_"+k]=v;el.style[k]=v}},stC=(el,v)=>{if(el._c!==v){el._c=v;el.className=v}},stH=(el,v)=>{if(el._h!==v){el._h=v;el.hidden=v}};
 function drawTags(){
   let i=0;for(const f of tagged){if(i>=pool.length)break;const el=pool[i];
     v3.set(f.x,f.y+f.L*(f.s.kind==="jelly"?.45:f.s.kind==="ray"?.2:.28)+.6,f.z).project(camera);
     if(v3.z>1||Math.abs(v3.x)>1.1||Math.abs(v3.y)>1.1){continue}
     const big=f===found,txt=(f.lend?"★ ":"")+(big?`${f.name} · ${nomeDe(f)}`:f.name);
-    if(el._n.textContent!==txt)el._n.textContent=txt;el.className=(big?"tag big":"tag")+(f.lend?" lend":"");
+    if(el._n.textContent!==txt)el._n.textContent=txt;stC(el,(big?"tag big":"tag")+(f.lend?" lend":""));
     const showHp=f.hpShow>NOW||(big&&f.hpv!=null);el._hp.hidden=!showHp;if(showHp){const r=f.hpv??1;el._hp.firstChild.style.width=Math.round(r*100)+"%";el._hp.firstChild.style.background=hpCor(r)}
-    el.style.borderColor=f.lend?"":big||f.s.r==="Lendário"||f.s.r==="Mítico"?RAR[f.s.r]:"";el.style.color=f.lend?"":big?RAR[f.s.r]:"";
-    const dist=camera.position.distanceTo(v3.set(f.x,f.y,f.z));el.style.opacity=big?1:Math.max(.25,Math.min(1,1.6-dist/70));
+    stS(el,"borderColor",f.lend?"":big||f.s.r==="Lendário"||f.s.r==="Mítico"?RAR[f.s.r]:"");stS(el,"color",f.lend?"":big?RAR[f.s.r]:"");
+    const dist=camera.position.distanceTo(v3.set(f.x,f.y,f.z));stS(el,"opacity",String(Math.round((big?1:Math.max(.25,Math.min(1,1.6-dist/70)))*40)/40));
     v3.set(f.x,f.y+f.L*(f.s.kind==="jelly"?.45:f.s.kind==="ray"?.2:.28)+.6,f.z).project(camera);
-    el.style.transform=`translate(${(v3.x+1)/2*innerWidth}px,${(1-v3.y)/2*innerHeight}px) translate(-50%,-100%)`;el.hidden=false;i++}
+    el.style.transform=`translate(${(v3.x+1)/2*innerWidth}px,${(1-v3.y)/2*innerHeight}px) translate(-50%,-100%)`;stH(el,false);i++}
   for(const e of SKEL.tags()){if(i>=pool.length)break;const el=pool[i];
     v3.set(e.x,e.y+e.L*.25+.5,e.z).project(camera);if(v3.z>1||Math.abs(v3.x)>1.1||Math.abs(v3.y)>1.1)continue;
-    const txt="☠ "+e.name;if(el._n.textContent!==txt)el._n.textContent=txt;el.className="tag skel";el._hp.hidden=true;el.style.borderColor="";el.style.color="";
-    const dist=camera.position.distanceTo(v3.set(e.x,e.y,e.z));el.style.opacity=Math.max(.3,Math.min(.9,1.5-dist/60));
+    const txt="☠ "+e.name;if(el._n.textContent!==txt)el._n.textContent=txt;stC(el,"tag skel");el._hp.hidden=true;stS(el,"borderColor","");stS(el,"color","");
+    const dist=camera.position.distanceTo(v3.set(e.x,e.y,e.z));stS(el,"opacity",String(Math.round((Math.max(.3,Math.min(.9,1.5-dist/60)))*40)/40));
     v3.set(e.x,e.y+e.L*.25+.5,e.z).project(camera);
-    el.style.transform=`translate(${(v3.x+1)/2*innerWidth}px,${(1-v3.y)/2*innerHeight}px) translate(-50%,-100%)`;el.hidden=false;i++}
-  for(;i<pool.length;i++)pool[i].hidden=true;
+    el.style.transform=`translate(${(v3.x+1)/2*innerWidth}px,${(1-v3.y)/2*innerHeight}px) translate(-50%,-100%)`;stH(el,false);i++}
+  for(;i<pool.length;i++)stH(pool[i],true);
   for(let k=pops.length-1;k>=0;k--){const p=pops[k],a=(NOW-p.t0)/1.4;if(a>=1){p.el.hidden=true;pops.splice(k,1);continue}
     v3.set(p.f.x,p.f.y+p.f.L*.35+1,p.f.z).project(camera);if(v3.z>1){p.el.style.opacity=0;continue}
     p.el.style.opacity=a<.7?1:1-(a-.7)/.3;p.el.style.transform=`translate(${(v3.x+1)/2*innerWidth+p.dx*a}px,${(1-v3.y)/2*innerHeight-40*a}px) translate(-50%,-100%) scale(${1+.25*Math.max(0,.15-a)/.15})`}
@@ -1285,7 +1307,7 @@ const TIDE=window.TIDE=(()=>{
     if(passado>2){QUIET=true;while(i<ev.length&&ev[i].t<passado-1)handle(ev[i++]);QUIET=false;for(const r of removals)r.at=Math.min(r.at,NOW+1.5)}
     if(myIn&&passado<DUR){$("card").hidden=true;found=mf;startFollow(mf);alerta(`Maré começou! Câmera no seu bicho: ${MEU} (${mf.s.nome})`,"info")}
     render()}
-  function buscarMare(){if(Date.now()-ultimaBusca<5000)return;ultimaBusca=Date.now();
+  function buscarMare(){if(Date.now()-ultimaBusca<25e3+Math.random()*1e4)return;ultimaBusca=Date.now();
     apiGet("/mare").then(m=>{if(m&&m.n>mareN){pend=m;if(Date.now()>=m.start&&Date.now()<m.start+(m.dur||DUR)*1000+5000)beginLive(m)}}).catch(()=>{})}
   let next=nextAt();
   const volAt=f=>{if(!f)return 0;const d=camera.position.distanceTo(v3.set(f.x,f.y,f.z));return Math.max(0,1-d/90)};
@@ -1339,13 +1361,13 @@ const TIDE=window.TIDE=(()=>{
     else if(e.type==="morte"){const V=B;if(A)A.chase=null;stats.mortes++;
       if(A){stats.killers[e.a]=(stats.killers[e.a]||0)+1}
       if(e.como&&e.como!=="engoliu")stats.viradas.push(e);
-      if(!V)return;V.dead=true;V.hpv=0;V.hpShow=t+3;V.chase=null;pop(V,"☠","kill");
+      if(!V)return;if(LIVE&&V.b){V.b.alive=false;V.b.hp=0;V.b.diedAt=mareN;V.b.killedBy={name:e.a,sp:A?A.s.id:null};if(A&&A.b)A.b.kills.push({name:V.name,sp:V.s.id,mare:mareN})}V.dead=true;V.hpv=0;V.hpShow=t+3;V.chase=null;pop(V,"☠","kill");
       const verbo={veneno:"envenenou",ferrao:"ferroou",revide:"derrubou",engoliu:"engoliu"}[e.como]||"devorou";
       const as=A?A.s.nome:"?",vs=V.s.nome;stats.lista.push({a:e.a,b:e.b,as,vs,asp:A?A.s.id:null,bsp:V.s.id,verbo:{veneno:"envenenou",ferrao:"ferroou",revide:"derrubou",engoliu:"engoliu"}[e.como]||"devorou"});
       feedKill(`<span><b>${esc(e.a)}</b> (${as}) ${verbo} <b class="v">${esc(e.b)}</b> (${vs})</span>`);
       if(window.SOM&&!QUIET)SOM.morte(Math.max(.25,volAt(V)));
       removals.push({f:V,at:t+9,como:e.como})}
-    else if(e.type==="nivel"){if(!A||A.dead)return;stats.niveis++;A.size*=1.07;A.L=A.s.len*A.size;
+    else if(e.type==="nivel"){if(!A||A.dead)return;stats.niveis++;if(LIVE&&A.b)A.b.lvl=Math.max(A.b.lvl,e.lvl);A.size*=1.07;A.L=A.s.len*A.size;
       if(e.lvl>=MARE.MAXN){virarLenda(A,true);stats.lendas.push(e.a);feedKill(`<span>★ <b>${esc(e.a)}</b> virou <b style="color:#ffd36a">${esc(nomeDe(A))}</b></span>`)}else pop(A,"NÍVEL "+e.lvl+"!","lvl")}
     else if(e.type==="vinganca"){stats.vingancas.push(e);if(A&&!A.dead)pop(A,"⚔ VINGANÇA!","lvl");
       feedKill(`<span>⚔ <b>${esc(e.a)}</b> ${e.como==="abateu"?"se vingou e abateu":"sobreviveu ao ataque de"} <b class="v">${esc(e.b)}</b>, quem o matou</span>`)}
@@ -1396,13 +1418,13 @@ const TIDE=window.TIDE=(()=>{
     if(state==="run"){while(i<ev.length&&start+ev[i].t<=NOW)handle(ev[i++]);if(NOW>start+DUR+2&&i>=ev.length&&!removals.length)finish()}
     for(let k=removals.length-1;k>=0;k--)if(NOW>removals[k].at){const r=removals.splice(k,1)[0];bury(r)}
     if(LIVE){if(state!=="run"&&pend&&Date.now()>=pend.start)beginLive(pend);
-      else if(state==="idle"&&new Date()>=next){state="espera";esperaAte=Date.now()+40*60e3;shown=""}
+      else if(state==="idle"&&new Date()>=next){state="espera";esperaAte=Date.now()+120*60e3;shown=""}
       if(state==="espera"){buscarMare();if(Date.now()>esperaAte){state="idle";next=nextAt();shown=""}}}
     else if(state==="idle"&&new Date()>=next)begin();
     if(alertUntil&&NOW>alertUntil){$("alert").hidden=true;alertUntil=0}
     acc+=dt;if(acc>.25){acc=0;render()}
   }
-  return {update,begin,beginLive,cardMare,setPend(m){pend=m},setUltima(R){ultima=R;shown="";render()},refresh(){shown="";render()},get running(){return state==="run"},limpar(){ultima=null;shown="";render()}};
+  return {update,begin,beginLive,cardMare,setPend(m){pend=m},get temPend(){return !!pend},setUltima(R){ultima=R;shown="";render()},refresh(){shown="";render()},get running(){return state==="run"},limpar(){ultima=null;shown="";render()}};
 })();
 
 /* ---------- resumo da maré (visual e interativo) ---------- */
@@ -1574,8 +1596,8 @@ let ASSASSINOS={},novosDesde=0;
 function aplicarFicha(f,b){f.b=b;f.size=(f.size0||f.size)*Math.pow(1.07,Math.max(0,b.lvl-1));f.L=f.s.len*f.size;if(b.lvl>=MARE.MAXN)virarLenda(f)}
 function skelPos(n){const r=rng(hash(n+"#skel"));return [-BX*.9+r()*BX*1.8,BZ0*.9+r()*(BZ1-BZ0)*.9]}
 async function buscarNovos(toastar){
-  const r=await apiGet("/novos?desde="+novosDesde);if(r.temp!==TEMP.n)return [];novosDesde=Math.max(novosDesde,...r.novos.map(x=>x[1]),0);const out=[];
-  for(const [n] of r.novos){if(byName.has(n)||MORTOS.has(n))continue;const f=addFish(n);if(!f)continue;f.b.bornAt=mareN;if(ASSASSINOS[n])f.b.rival=ASSASSINOS[n];out.push(f);if(toastar)toast(f)}
+  let lista=[];for(let pg=0;pg<20;pg++){const r=await apiGet("/novos?desde="+novosDesde);if(r.temp!==TEMP.n)return [];if(r.ate)novosDesde=Math.max(novosDesde,r.ate);lista=lista.concat(r.novos);if(!r.mais)break}const out=[];
+  for(const [n] of lista){if(byName.has(n)||MORTOS.has(n))continue;const f=addFish(n);if(!f)continue;f.b.bornAt=mareN;if(ASSASSINOS[n])f.b.rival=ASSASSINOS[n];out.push(f);if(toastar)toast(f)}
   return out}
 async function carregarEstado(fimT){
   try{
@@ -1589,7 +1611,7 @@ async function carregarEstado(fimT){
     for(const b of e.vivos||[]){const f=byName.get(b.name)||addFish(b.name,false,false,b.sp);if(f)aplicarFicha(f,b)}
     MORTOS.clear();SKEL.clear();
     for(const m of e.mortos||[]){const s=SPECIES.find(x=>x.id===m.b.sp)||SPECIES[0];MORTOS.set(m.b.name,{b:m.b,s,como:m.como});const [x,z]=skelPos(m.b.name);SKEL.add(m.b.name,s,x,z,s.len)}
-    novosDesde=0;const novos=await buscarNovos(false),nset=new Set(novos.map(f=>f.name));
+    novosDesde=e.snapRow||0;const novos=await buscarNovos(false),nset=new Set(novos.map(f=>f.name));
     removeWhere(f=>!f.test&&!vivos.has(f.name)&&!nset.has(f.name));
     countsDirty=true;updateTemp();
     if(fimT&&TEMP.hall[0])setTimeout(()=>showHall(TEMP.hall[0],true),800);
@@ -1607,9 +1629,11 @@ async function jaComentei(n){
 if(LIVE){
   const st=$("stress");if(st)st.remove();
   carregarEstado();
-  setInterval(()=>{if(document.hidden||TIDE.running)return;buscarNovos(true).catch(()=>{});
-    // também confere se o robô já publicou a próxima maré (ela começa sozinha no horário marcado)
-    apiGet("/mare").then(m=>{if(m&&m.n>mareN)TIDE.setPend(m)}).catch(()=>{})},30e3);
+  // bichos novos a cada ~1 minuto (o robô lê o Instagram 1 vez por minuto)
+  const ciclo=()=>{setTimeout(ciclo,55e3+Math.random()*15e3);if(document.hidden||TIDE.running)return;buscarNovos(true).catch(()=>{})};setTimeout(ciclo,60e3);
+  // a maré é publicada uns 2 minutos antes das 21h: só consulta entre 20h57 e 23h (Brasília)
+  setInterval(()=>{if(document.hidden||TIDE.running||TIDE.temPend)return;const br=new Date(Date.now()-3*3600e3),m=br.getUTCHours()*60+br.getUTCMinutes();
+    if(m<20*60+57||m>=23*60||Math.random()<.4)return;apiGet("/mare").then(x=>{if(x&&x.n>mareN)TIDE.setPend(x)}).catch(()=>{})},20e3);
 }
 
 /* ---------- sons do fundo do mar (gerados no navegador, sem arquivos) ---------- */
@@ -1705,7 +1729,10 @@ $("camnext").addEventListener("click",()=>{vista=(vista+1)%VISTAS.length;if(camM
 updateTemp();
 $("snd").addEventListener("click",()=>{try{SOM.toggle()}catch(e){$("snd").textContent="Som indisponível";$("snd").disabled=true}});
 const clock=new THREE.Clock();let fpsAcc=0,fpsN=0,lastT=0,good=0,bad=0,warned=false;
+let rafT=0,SKIP=1,skc=0;const rafD=[];
 function loop(){
+  {const pn=performance.now();if(rafD.length<45){if(rafT)rafD.push(pn-rafT);rafT=pn;if(rafD.length===45){const m=rafD.slice().sort((a,b)=>a-b)[22];if(m<10)SKIP=2}}
+   if(SKIP>1&&(++skc%SKIP)){requestAnimationFrame(loop);return}}
   const dt=Math.min(.05,clock.getDelta()),t=clock.elapsedTime;U.time.value=t;NOW=t;
   camera.updateMatrixWorld();layout(dt,t);
   const sp=snowG.attributes.position,sn=QL[ql].snow;for(let i=0;i<sn;i++){let y=sp.array[i*3+1]-snowV[i]*dt;sp.array[i*3]+=Math.sin(t*.4+i)*.05*dt;if(y<-2)y=52;sp.array[i*3+1]=y}sp.needsUpdate=true;
@@ -1744,5 +1771,6 @@ function loop(){
 loading.remove();loop();
 })();
 </script>
+
 
 </html>
