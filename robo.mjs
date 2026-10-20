@@ -16,7 +16,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // horários em Brasília (UTC-3, sem horário de verão)
 const diaBR = t => new Date(t - 3 * 3600e3).toISOString().slice(0, 10);
-function proxima21h(t) { const d = new Date(t - 3 * 3600e3); d.setUTCHours(21, 0, 0, 0); let ms = d.getTime() + 3 * 3600e3; if (ms <= t) ms += 864e5; return ms }
+function hoje21h(t) { const d = new Date(t - 3 * 3600e3); d.setUTCHours(21, 0, 0, 0); return d.getTime() + 3 * 3600e3 }
 
 const meta = await get("/admin/meta");
 const hoje = diaBR(Date.now());
@@ -25,17 +25,23 @@ if (!FORCAR && meta.ultima_mare_dia === hoje) { console.log("A maré de hoje já
 let inicio;
 if (FORCAR) inicio = Date.now() + (+process.env.INICIO_EM || 60) * 1000;
 else {
-  inicio = proxima21h(Date.now());
+  inicio = hoje21h(Date.now());
+  const falta = inicio - Date.now();
+  // o GitHub às vezes atrasa: até 2h depois das 21h a maré do dia ainda acontece, 1 minuto depois do robô rodar
+  if (falta > 3 * 3600e3 || falta < -2 * 3600e3) { console.log("Fora do horário da maré."); process.exit(0) }
   // espera até 2 minutos antes das 21h, para pegar as estratégias de última hora
   const alvo = inicio - 120e3;
-  if (inicio - Date.now() > 3 * 3600e3) { console.log("Fora do horário da maré."); process.exit(0) }
   while (Date.now() < alvo) await sleep(Math.min(60e3, alvo - Date.now()));
-  if (Date.now() > inicio - 20e3) inicio = Date.now() + 30e3; // atrasou: começa em 30 segundos
+  if (Date.now() > inicio - 20e3) inicio = Date.now() + 60e3; // atrasou: começa em 1 minuto
 }
 
+const foto = Date.now(); // momento em que o elenco é fechado
+const ultimaEntrada = (await get("/admin/ultima-entrada")).id;
 const estado = await get("/estado");
 const temp = estado.temp || 1, MARES = estado.MARES || 10, mareN = (estado.mareN || 0) + 1;
-const entradas = await get("/admin/entradas?temp=" + temp);
+// entradas em páginas de 5000 (só até a foto: quem comentar depois entra na próxima maré)
+const entradas = [];
+for (let desde = 0; ;) { const pg = await get(`/admin/entradas?temp=${temp}&desde=${desde}`); for (const x of pg) if (x[2] <= ultimaEntrada) entradas.push(x); if (pg.length < 5000) break; desde = pg[pg.length - 1][2] }
 const estr = await get("/admin/estrategias?mare=" + mareN);
 
 // elenco: quem já estava vivo + quem comentou e ainda não entrou
@@ -57,13 +63,13 @@ const mortos = (estado.mortos || []).concat(novosMortos);
 const k = mareN - (estado.inicio || 0), fimT = k >= MARES;
 const R = REGRAS.resumo(ev, ordenado, mareN, { n: temp, k }, fimT, MARES, vivos.length);
 
-let proximo = { v: 1, temp, mareN, inicio: estado.inicio || 0, MARES, hora: 21, snap: inicio, vivos, mortos, assassinos: estado.assassinos || {}, hall: estado.hall || [] };
+let proximo = { v: 1, temp, mareN, inicio: estado.inicio || 0, MARES, hora: 21, snap: inicio, snapRow: ultimaEntrada, vivos, mortos, assassinos: estado.assassinos || {}, hall: estado.hall || [] };
 let metaNova = { pend_start: inicio, pend_dur: 70, mareN, ultima_mare_dia: hoje }, hallNovo = null;
 if (fimT) {
   hallNovo = REGRAS.hall(temp, k, vivos, mortos.map(m => m.b));
   const assassinos = {}; for (const m of mortos) if (m.b.killedBy) assassinos[m.b.name] = m.b.killedBy.name;
-  proximo = { v: 1, temp: temp + 1, mareN, inicio: mareN, MARES, hora: 21, snap: inicio, vivos: [], mortos: [], assassinos, hall: [hallNovo, ...(estado.hall || [])].slice(0, 10) };
-  metaNova = { ...metaNova, temp: temp + 1, temp_inicio_ts: inicio };
+  proximo = { v: 1, temp: temp + 1, mareN, inicio: mareN, MARES, hora: 21, snap: inicio, snapRow: ultimaEntrada, vivos: [], mortos: [], assassinos, hall: [hallNovo, ...(estado.hall || [])].slice(0, 10) };
+  metaNova = { ...metaNova, temp: temp + 1, temp_inicio_ts: foto };
 }
 await put("/admin/kv/mare", { n: mareN, start: inicio, dur: 70, temp, events: ev, R, hall: hallNovo });
 await put("/admin/kv/proximo", proximo);

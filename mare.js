@@ -31,7 +31,7 @@ const MARE=(()=>{
   const ESTR={auto:"Automático",atacar:"Atacar",esconder:"Esconder",cardume:"Cardume"};
   const ESTR_TXT={auto:"Sem estratégia: nada muda",atacar:"Caça mais e ganha 50% mais experiência, mas fica mais exposto",
     esconder:"Fica nos corais: é menos caçado e esquiva mais, mas ganha metade da experiência",cardume:"Junto com um amigo que também escolheu você: os dois esquivam mais"};
-  const XP_NIVEL=[0,40,100,180,300]; // xp necessário para os níveis 2..5
+  const XP_NIVEL=[0,30,80,150,250]; // xp necessário para os níveis 2..5
   const MAXN=5;
   function rngOf(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
@@ -106,8 +106,8 @@ const MARE=(()=>{
     });
     // fim da maré: fome, recuperação e experiência por sobreviver
     for(const b of vivos){if(!b.alive)continue;
-      if(STATS[b.sp].hab==="fome"&&!comeu.has(b)){b.hp=Math.max(1,b.hp-Math.round(maxHp(b)*.12))}
-      b.hp=Math.min(maxHp(b),b.hp+Math.round(maxHp(b)*.3));b.survived++;ganhaXp(b,b.estr==="esconder"?5:mutuo(b)?15:10,ev,dur)}
+      if(STATS[b.sp].hab==="fome"&&!comeu.has(b)){b.hp=Math.max(1,b.hp-Math.round(maxHp(b)*.15))}
+      b.hp=Math.min(maxHp(b),b.hp+Math.round(maxHp(b)*(STATS[b.sp].hab==="fome"&&!comeu.has(b)?.1:.3)));b.survived++;ganhaXp(b,b.estr==="esconder"?10:mutuo(b)?30:20,ev,dur)}
     // a estratégia vale só para esta maré: na próxima a pessoa escolhe de novo
     for(const b of vivos){b.estr="auto";b.amigo=null}
     ev.sort((x,y)=>x.t-y.t);

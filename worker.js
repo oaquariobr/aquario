@@ -40,10 +40,13 @@ async function igGet(env, url) {
   if (!r.ok || j.error) { const e = new Error((j.error && j.error.message) || ("HTTP " + r.status)); e.code = j.error && j.error.code; throw e }
   return j;
 }
-async function lerPost(env, mediaId, temp, ini, mare, maxPag) {
-  let url = `/${mediaId}/comments?fields=id,text,username,timestamp&limit=50`, novos = 0;
+const semToken = u => { try { const x = new URL(u); x.searchParams.delete("access_token"); return x.toString() } catch (e) { return u } };
+async function lerPost(env, mediaId, temp, ini, mare, maxPag, eu) {
+  const inicio = `/${mediaId}/comments?fields=id,text,username,timestamp&limit=50`, chave = "pag_" + mediaId;
+  // a ordem dos comentários (mais novo primeiro ou mais antigo primeiro) é descoberta pelas datas e guardada
+  let ordem = await getMeta(env, "ord_" + mediaId), url = (ordem === "asc" && (await getMeta(env, chave))) || inicio, novos = 0, ultimaAsc = null;
   for (let p = 0; p < maxPag && url; p++) {
-    const j = await igGet(env, url), cs = (j.data || []).filter(c => c.username);
+    const j = await igGet(env, url), cs = (j.data || []).filter(c => c.username && norm(c.username) !== eu);
     if (!cs.length) break;
     const vistos = new Set((await env.DB.prepare(`SELECT id FROM vistos WHERE id IN (${cs.map(() => "?").join(",")})`).bind(...cs.map(c => c.id)).all()).results.map(r => r.id));
     const ops = [];
@@ -58,11 +61,15 @@ async function lerPost(env, mediaId, temp, ini, mare, maxPag) {
       novos++;
     }
     if (ops.length) await env.DB.batch(ops);
-    const asc = cs.length > 1 && Date.parse(cs[0].timestamp) < Date.parse(cs[cs.length - 1].timestamp);
+    if (!ordem && cs.length > 1) { const a = Date.parse(cs[0].timestamp), b = Date.parse(cs[cs.length - 1].timestamp); if (a !== b) { ordem = a < b ? "asc" : "desc"; await setMeta(env, { ["ord_" + mediaId]: ordem }) } }
+    const asc = ordem === "asc";
     // na ordem do mais novo para o mais antigo dá para parar quando uma página inteira já foi vista
-    if (!asc && vistos.size === cs.length) break;
+    if (ordem === "desc" && vistos.size === cs.length) break;
+    // do mais antigo para o mais novo: guarda a página atual para continuar dela na próxima leitura
+    if (asc) ultimaAsc = semToken(url.startsWith("http") ? url : (env.IG_BASE || IG_PADRAO) + url);
     url = j.paging && j.paging.next || null;
   }
+  if (ultimaAsc) await setMeta(env, { [chave]: ultimaAsc });
   return novos;
 }
 async function lerComentarios(env, rapido) {
@@ -76,11 +83,14 @@ async function lerComentarios(env, rapido) {
       const j = await igGet(env, "/me/media?fields=id,timestamp&limit=6");
       posts = (j.data || []).map(m => m.id); await setMeta(env, { posts: JSON.stringify(posts), posts_ts: agora });
     }
+    // o @ da própria conta não vira bicho (respostas do perfil)
+    let eu = await getMeta(env, "eu_user");
+    if (!eu) { try { const j = await igGet(env, "/me?fields=username"); if (j.username) { eu = norm(j.username); await setMeta(env, { eu_user: eu }) } } catch (e) { } }
     const min = Math.floor(agora / 60e3); let novos = 0;
     for (let i = 0; i < posts.length; i++) {
       // o post mais novo é lido sempre; os outros, a cada 5 minutos
       if (i > 0 && (rapido || min % 5 !== i % 5)) continue;
-      novos += await lerPost(env, posts[i], temp, ini, mare, rapido ? 2 : 4);
+      novos += await lerPost(env, posts[i], temp, ini, mare, rapido ? 2 : 4, eu);
     }
     await setMeta(env, { ultima_leitura: agora });
     return { novos };
@@ -136,9 +146,10 @@ async function rotas(req, env, ctx) {
   }
   if (p === "/mare") { const s = await env.KV.get("mare", "stream"); return s ? new Response(s, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=5", ...CORS } }) : json({}) }
   if (p === "/novos") {
-    const temp = +(await getMeta(env, "temp", 1)), desde = +(url.searchParams.get("desde") || 0);
-    const r = await env.DB.prepare("SELECT name,ts FROM entradas WHERE temp=? AND ts>? ORDER BY ts LIMIT 5000").bind(temp, desde).all();
-    return json({ temp, agora: Date.now(), novos: r.results.map(x => [x.name, x.ts]) }, 200, { "Cache-Control": "public, max-age=10" });
+    const temp = +(await getMeta(env, "temp", 1)), desde = Math.max(0, +(url.searchParams.get("desde") || 0) | 0), LIM = 2000;
+    const r = await env.DB.prepare("SELECT rowid AS id,name,ts FROM entradas WHERE temp=? AND rowid>? ORDER BY rowid LIMIT ?").bind(temp, desde, LIM).all();
+    const rs = r.results;
+    return json({ temp, agora: Date.now(), ate: rs.length ? rs[rs.length - 1].id : desde, mais: rs.length === LIM, novos: rs.map(x => [x.name, x.ts]) }, 200, { "Cache-Control": "public, max-age=10" });
   }
   if (p === "/eu") {
     const n = norm(url.searchParams.get("n") || ""), temp = +(await getMeta(env, "temp", 1)), mare = +(await getMeta(env, "mareN", 0)) + 1;
@@ -159,7 +170,8 @@ async function rotas(req, env, ctx) {
   }
   if (p.startsWith("/admin/")) {
     if (!env.ADMIN_KEY || req.headers.get("Authorization") !== "Bearer " + env.ADMIN_KEY) return json({ erro: "sem permissão" }, 401);
-    if (p === "/admin/entradas") { const temp = +(url.searchParams.get("temp") || 1); const r = await env.DB.prepare("SELECT name,ts FROM entradas WHERE temp=? ORDER BY ts").bind(temp).all(); return json(r.results.map(x => [x.name, x.ts])) }
+    if (p === "/admin/entradas") { const temp = +(url.searchParams.get("temp") || 1), desde = +(url.searchParams.get("desde") || 0); const r = await env.DB.prepare("SELECT rowid AS id,name,ts FROM entradas WHERE temp=? AND rowid>? ORDER BY rowid LIMIT 5000").bind(temp, desde).all(); return json(r.results.map(x => [x.name, x.ts, x.id])) }
+    if (p === "/admin/ultima-entrada") { const r = await env.DB.prepare("SELECT MAX(rowid) AS id FROM entradas").first(); return json({ id: (r && r.id) || 0 }) }
     if (p === "/admin/estrategias") { const m = +(url.searchParams.get("mare") || 0); const r = await env.DB.prepare("SELECT name,estr,amigo FROM estrategias WHERE mare=?").bind(m).all(); return json(r.results) }
     if (p.startsWith("/admin/kv/") && req.method === "PUT") { const k = p.slice(10); if (!["estado", "proximo", "mare"].includes(k)) return json({ erro: "chave" }, 400); await env.KV.put(k, req.body); return json({ ok: true }) }
     if (p === "/admin/meta" && req.method === "POST") { await setMeta(env, await req.json()); return json({ ok: true }) }
