@@ -1,10 +1,12 @@
 name: Maré diária
 
 on:
-  # roda às 20h05 e às 20h35 (Brasília); o segundo horário é reserva caso o primeiro atrase
+  # roda às 20h05 e às 20h35 (Brasília); os outros horários são reserva caso o GitHub atrase
+  # (a maré do dia ainda acontece até 23h, 1 minuto depois do robô rodar)
   schedule:
     - cron: "5 23 * * *"
     - cron: "35 23 * * *"
+    - cron: "10 0 * * *"
   workflow_dispatch:
     inputs:
       forcar:
@@ -23,10 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - name: Calcular e publicar a maré
         run: node robo.mjs
         env:
