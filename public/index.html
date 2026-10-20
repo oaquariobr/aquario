@@ -31,6 +31,9 @@ body{background:var(--deep);color:var(--text);font-family:var(--f-ui);overflow:h
 .estr{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:6px 0 4px}
 .estr button{font-size:12px;padding:6px 11px}
 .estr button[aria-pressed="true"]{background:var(--accent);color:#03202c;border-color:var(--accent)}
+.perola-aviso{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,214,140,.45);background:rgba(255,214,140,.08)}
+.perola-aviso>b{color:#ffe0a3;font-size:14px}.perola-aviso .seq{margin-left:8px;font-size:12px;color:#ffb36b}.perola-aviso p{margin:5px 0;font-size:12px}.perola-aviso .ok{color:#8ff0a4;font-weight:600}
+.perola-aviso button{margin-top:6px;padding:5px 12px;font-size:12px}.perola-bt{display:flex;gap:6px;flex-wrap:wrap}.perola-bt button[disabled]{opacity:.4;cursor:default}
 .estr-aviso{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(127,200,255,.4);background:rgba(127,200,255,.09)}
 .estr-aviso>b{display:block;color:#9ad6ff;font-size:13px;margin-bottom:4px}.estr-aviso p{margin:4px 0;font-size:12px}
 .estr-aviso button{margin-top:6px;padding:5px 12px;font-size:12px}
@@ -347,6 +350,10 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 .es-pc li.p::before{content:"+";background:rgba(94,224,138,.2);color:#5ee08a}.es-pc li.c::before{content:"−";background:rgba(255,107,125,.2);color:#ff6b7d}
 .card p.es-dica{font-size:12px;color:var(--muted);margin:6px 0 8px;font-style:italic}
 .es-cp{font-size:12px;padding:6px 12px}
+.pg-s{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#8fb3c0)}
+.pg-l{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:10px;background:rgba(255,255,255,.04);margin:4px 0;text-align:left}
+.pg-l .ic{font-size:18px;width:24px;text-align:center}.pg-l .t{flex:1;min-width:0;display:flex;flex-direction:column}.pg-l .t small{font-size:11px;opacity:.8;margin-top:2px}
+.pg-l .v{font-weight:700;color:#ffe0a3;font-family:var(--f-num);white-space:nowrap}.pg-l .es-cp{padding:4px 9px;font-size:11px}
 .es-como{text-align:left;background:linear-gradient(135deg,rgba(225,48,108,.16),rgba(252,175,69,.10));border:1px solid rgba(225,48,108,.4);border-radius:14px;padding:10px 12px;margin:8px 0 12px;font-size:12.5px}
 .es-como>b{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ff9ab8}
 .es-como ol{margin:6px 0;padding-left:18px;display:flex;flex-direction:column;gap:4px;color:var(--text)}
@@ -421,6 +428,7 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
         <button type="button" class="mi" data-m="meu"><span>👤</span>Meu @</button>
         <button type="button" class="mi" data-m="mare"><span>🌊</span>Maré de hoje</button>
         <button type="button" class="mi" data-m="estr"><span>⚔️</span>Estratégias</button>
+        <button type="button" class="mi" data-m="perolas"><span>🦪</span>Pérolas</button>
         <button type="button" class="mi" data-m="hall"><span>🏆</span>Hall da Fama</button>
         <button type="button" class="mi" data-m="rar"><span>📊</span>Raridades</button>
         <label class="mi"><span>🏷️</span>Mostrar todos os @<input type="checkbox" id="allNames"></label>
@@ -491,7 +499,7 @@ const MARE=(()=>{
   const ESTR={auto:"Automático",atacar:"Atacar",esconder:"Esconder",cardume:"Cardume"};
   const ESTR_TXT={auto:"Sem estratégia: nada muda",atacar:"Caça mais e ganha 50% mais experiência, mas fica mais exposto",
     esconder:"Fica nos corais: é menos caçado e esquiva mais, mas ganha metade da experiência",cardume:"Junto com um amigo que também escolheu você: os dois esquivam mais"};
-  const XP_NIVEL=[0,30,80,150,250]; // xp necessário para os níveis 2..5
+  const XP_NIVEL=[0,40,110,210,350]; // xp necessário para os níveis 2..5
   const MAXN=5;
   function rngOf(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
@@ -573,7 +581,22 @@ const MARE=(()=>{
     ev.sort((x,y)=>x.t-y.t);
     return ev;
   }
-  return {STATS,HAB,ESTR,ESTR_TXT,XP_NIVEL,MAXN,novo,rodar,maxHp,atk,def};
+  // ===== PÉROLAS: prêmio por continuar vivo (não dão força na luta) =====
+  // ganha: sobreviver 1, cada fuga +1, cada abate +1; sequência de dias comentando: +2 no 3º dia e +3 a cada 7 dias
+  // gasta (comentando no post do dia): ROLETA 8 (sorteia outra espécie, volta ao nível 1), CURAR 2 (recupera metade da vida)
+  // guarda até 15 pérolas de uma temporada para a outra
+  const PEROLAS={sobreviver:1,fuga:1,abate:1,seq3:2,seq7:3,roleta:8,curar:2,guardar:15};
+  // quanto cada bicho que estava vivo antes da maré e continuou vivo ganhou nela
+  function ganhos(ev,roster,vivosAntes){const fug={},ab={};
+    for(const e of ev){if(e.type==="fuga")fug[e.b]=(fug[e.b]||0)+1;else if(e.type==="morte")ab[e.a]=(ab[e.a]||0)+1}
+    const out={};for(const n of vivosAntes){const b=roster[n];if(!b||!b.alive)continue;
+      out[n]={sob:PEROLAS.sobreviver,fug:(fug[n]||0)*PEROLAS.fuga,ab:(ab[n]||0)*PEROLAS.abate}}
+    return out}
+  const bonusSeq=seq=>seq===3?PEROLAS.seq3:seq>0&&seq%7===0?PEROLAS.seq7:0;
+  // roleta: bicho novo da espécie sorteada, nível 1, mas guarda o histórico (abates, marés vivo, rival)
+  function trocaEspecie(b,sp){const nb=novo(b.name,sp);nb.kills=b.kills;nb.survived=b.survived;nb.escapes=b.escapes;nb.rival=b.rival;nb.vingou=b.vingou;nb.bornAt=b.bornAt;return nb}
+  function cura(b){const mx=maxHp(b),antes=b.hp;b.hp=Math.min(mx,b.hp+Math.round(mx*.5));return b.hp-antes}
+  return {STATS,HAB,ESTR,ESTR_TXT,XP_NIVEL,MAXN,novo,rodar,maxHp,atk,def,PEROLAS,ganhos,bonusSeq,trocaEspecie,cura};
 })();
 
 /* ---------- utilidades ---------- */
@@ -585,7 +608,7 @@ const norm=n=>"@"+n.trim().replace(/^@+/,"").toLowerCase();
 const API=(()=>{try{const q=new URLSearchParams(location.search).get("api");if(q)return q.replace(/\/+$/,"")}catch(e){}return String(window.AQUA_API||"").replace(/\/+$/,"")})();
 const LIVE=!!API;
 const apiGet=p=>fetch(API+p+(p.includes("?")?"&":"?")+"t="+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});
-const TEMP={n:1,inicio:0,MARES:10,hall:[]};if(!LIVE)try{TEMP.hall=JSON.parse(localStorage.getItem("aq_hall")||"[]")}catch(e){}
+const TEMP={n:1,inicio:0,MARES:14,hall:[]};if(!LIVE)try{TEMP.hall=JSON.parse(localStorage.getItem("aq_hall")||"[]")}catch(e){}
 function speciesFor(name){const r=rng(hash(norm(name)+(TEMP.n>1?"#t"+TEMP.n:"")))();let a=0;for(const sp of SPECIES){a+=sp.p/100;if(r<a)return sp}return SPECIES[0]}
 const R=(a,b)=>a+Math.random()*(b-a);
 const sm=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t)};
@@ -1005,7 +1028,7 @@ const SKEL=(()=>{
   function pick(ray){const ims=tiers.flatMap(t=>t.ims);const h=ray.intersectObjects(ims,false)[0];
     return h&&h.instanceId!=null?h.object.userData.skel.slots[h.instanceId]:null}
   const get=n=>list.find(e=>e.name===n);
-  return {ready,add,update,pick,get,list,tags:()=>tagsOn,clear(){list.length=0;dirty=true}};
+  return {ready,add,update,pick,get,list,tags:()=>tagsOn,clear(){list.length=0;dirty=true},del(n){const i=list.findIndex(e=>e.name===n);if(i>=0){list.splice(i,1);dirty=true}}};
 })();
 
 /* ---------- populações instanciadas, com dois níveis de detalhe ---------- */
@@ -1219,6 +1242,12 @@ function fishCard(f,reveal){cardFish=f;const c=RAR[f.s.r],b=f.b,mx=MARE.maxHp(b)
      <div class="estr-amigo"><input id="amigoIn" placeholder="@amigo do cardume" aria-label="@ do amigo do cardume" autocomplete="off" autocapitalize="off" value="${esc(b.amigo||"")}"></div>
      <p style="margin:4px 0 10px;font-size:12px">${MARE.ESTR_TXT[E]}${E==="cardume"&&b.amigo?` · com <b>${esc(b.amigo)}</b>`:""}. No site real, você escolhe comentando ATACAR, ESCONDER ou CARDUME @amigo no post do dia.</p>`
     :E!=="auto"?`<p class="hab"><span>Estratégia</span> · ${MARE.ESTR[E]}${E==="cardume"&&b.amigo?` com ${esc(b.amigo)}`:""}</p>`:"";
+  const cp=cartDe(f.name),podeR=cp.p>=PE.roleta,podeC=cp.p>=PE.curar&&b.hp<mx;
+  const perHtml=!vivo?"":meu?`<div class="perola-aviso"><b>🦪 ${cp.p} ${cp.p===1?"pérola":"pérolas"}</b>${cp.s>1?`<span class="seq">🔥 ${cp.s} dias seguidos</span>`:""}
+     <p>Você ganha pérolas a cada maré que sobrevive. ${LIVE?`Para gastar, comente no post do dia: <b>ROLETA</b> (${PE.roleta}) sorteia outra espécie · <b>CURAR</b> (${PE.curar}) recupera metade da vida.`:`No site real, você gasta comentando ROLETA ou CURAR no post do dia. Aqui no teste:`}</p>
+     ${podeR&&LIVE?`<p class="ok">Já dá para girar a roleta!</p>`:""}
+     ${LIVE?`<button type="button" data-act="guiaper">Como funcionam as pérolas</button>`:`<div class="perola-bt"><button type="button" data-act="proleta"${podeR?"":" disabled"}>🎰 Roleta (${PE.roleta})</button><button type="button" data-act="pcurar"${podeC?"":" disabled"}>❤ Curar (${PE.curar})</button><button type="button" class="ghost" data-act="pteste">+8 (teste)</button></div>`}</div>`
+    :cp.p?`<p class="hab"><span>🦪 Pérolas</span> · ${cp.p}</p>`:"";
   const vingHtml=(b.rival?`<p class="hab"><span>⚔ Vingança</span> · procurando <b>${esc(b.rival)}</b>, quem o matou na temporada passada. Abater vale bônus cheio, sobreviver a um ataque dele vale metade.</p>`:"")+
     (b.vingou?`<p class="hab"><span>⚔ Vingou-se</span> · ${b.vingou.como==="abateu"?"abateu":"sobreviveu ao ataque de"} <b>${esc(b.vingou.name)}</b> na maré #${b.vingou.mare}</p>`:"");
   showCard(`<div class="k">${reveal?"Você virou":"No aquário"}</div><div class="who"></div><div class="sp" style="color:${f.lend?"#ffd36a":c}">${nomeDe(f)}</div>
@@ -1231,7 +1260,7 @@ function fishCard(f,reveal){cardFish=f;const c=RAR[f.s.r],b=f.b,mx=MARE.maxHp(b)
      <div><small>Ataque · Defesa</small><b>${Math.round(MARE.atk(b))} · ${Math.round(MARE.def(b))}</b></div>
      <div><small>Fugas</small><b>${b.escapes}</b></div>
    </div>
-   <p class="hab"><span>Habilidade</span> · ${MARE.HAB[S.hab]}</p>${vingHtml}${estrHtml}
+   <p class="hab"><span>Habilidade</span> · ${MARE.HAB[S.hab]}</p>${vingHtml}${estrHtml}${perHtml}
    <p class="hab" style="margin-bottom:0"><span>Vítimas</span></p>${vitimas(b)}
    <p>${chance(f.s)}</p>
    <div class="acts"><button data-act="follow">Seguir de perto</button>${MEU===f.name?'<span class="badge" style="color:var(--accent);align-self:center">Seu bicho</span>':`<button class="ghost" data-act="setmeu" data-name="${esc(f.name)}">É o meu @</button>`}<button class="ghost" data-act="close">Fechar</button></div>`,reveal);
@@ -1263,7 +1292,9 @@ function obitoCard(m){const b=m.b,s=m.s,k=b.killedBy;
    <div class="ficha"><div><small>Viveu</small><b>${b.survived} marés</b></div><div><small>Nível final</small><b>${b.lvl}</b></div>
    <div><small>Abates</small><b>${b.kills.length}</b></div><div><small>Fugas</small><b>${b.escapes}</b></div></div>
    <p class="hab" style="margin-bottom:0"><span>Vítimas</span></p>${vitimas(b)}
-   <p>O esqueleto ficou no fundo do mar com o @ gravado. Na próxima temporada dá para renascer comentando de novo no post.</p>
+   <p>O esqueleto ficou no fundo do mar com o @ gravado.</p>
+   <div class="perola-aviso"><b>🌱 Renascer</b><p>${LIVE?`A partir de amanhã, comente qualquer coisa no post do dia (por exemplo <b>RENASCER</b>). Você volta como um bicho novo sorteado, guarda suas ${cartDe(b.name).p} pérolas e`:`No site real, basta comentar no post do dia seguinte. Você volta como um bicho novo sorteado, guarda as pérolas e`} <b>${esc(k?k.name:"quem te matou")}</b> vira seu rival: abater quem te matou vale vingança.</p>
+   ${LIVE?"":`<button type="button" data-act="prenascer" data-name="${esc(b.name)}">🌱 Renascer agora (teste)</button>`}</div>
    <div class="acts">${SKEL.get(b.name)?`<button data-act="skel" data-name="${esc(b.name)}">☠ Visitar esqueleto</button>`:""}<button class="ghost" data-act="close">Fechar</button></div>`);
   $("card").querySelector(".who").textContent=b.name;$("card").style.borderColor="#ff5a6e88"}
 function startFollow(f){found=f;follow=true;flyT=1.8;controls.autoRotate=false;controls.enabled=true;controls.minDistance=Math.max(1.5,f.L*.8);
@@ -1282,6 +1313,14 @@ function act(a,name){
   if(a==="estr")escolherEstr(name)
   if(a==="jacomentei")jaComentei(name)
   if(a==="guiaestr")showEstr()
+  if(a==="guiaper")showPerolas()
+  // protótipo: testar pérolas sem Instagram
+  if(a==="pteste"||a==="proleta"||a==="pcurar"){const f=byName.get(MEU);if(!f||f.dead)return;const c=CARTEIRA[MEU]??={p:0,s:0};
+    if(a==="pteste")c.p+=8;
+    if(a==="proleta"&&c.p>=PE.roleta){c.p-=PE.roleta;aplicarPre([{tipo:"roleta",name:MEU,de:f.s.id,para:sorteioSp()}])}
+    if(a==="pcurar"&&c.p>=PE.curar){c.p-=PE.curar;const mx=MARE.maxHp(f.b);MARE.cura(f.b);aplicarPre([{tipo:"cura",name:MEU,hp:f.b.hp,max:mx}])}
+    const g=byName.get(MEU);if(g)fishCard(g,false);return}
+  if(a==="prenascer"&&MORTOS.has(name)){const m=MORTOS.get(name);aplicarPre([{tipo:"renasce",name,sp:sorteioSp(),rival:m.b.killedBy?m.b.killedBy.name:null}]);const f=byName.get(name);if(f){if(!MEU)setMeu(name);fishCard(f,true)}return}
   if(a==="estrmeu"){const f=byName.get(MEU);if(f&&!f.dead)fishCard(f,false)}
   if(a==="hall")showHall(TEMP.hall[+name])
 }
@@ -1407,10 +1446,10 @@ const TIDE=window.TIDE=(()=>{
   // no modo ao vivo a maré é às 21h de Brasília para todo mundo
   const nextAt=()=>{if(LIVE){const t=Date.now(),d=new Date(t-3*3600e3);d.setUTCHours(HORA,0,0,0);let ms=d.getTime()+3*3600e3;if(ms<=t)ms+=864e5;return new Date(ms)}
     const d=new Date();d.setHours(HORA,0,0,0);if(d<=new Date())d.setDate(d.getDate()+1);return d};
-  let pend=null,esperaAte=0,ultimaBusca=0;
+  let pend=null,esperaAte=0,ultimaBusca=0,rosterL=null,vivosL=[];
   // maré oficial: o robô publica os eventos; aqui só tocamos a animação no horário certo
   function beginLive(m){
-    if(state==="run")return;mareN=m.n;ev=m.events||[];i=0;state="run";removals=[];pend=null;
+    if(state==="run")return;mareN=m.n;ev=m.events||[];i=0;state="run";removals=[];pend=null;aplicarPre(m.pre);
     const passado=Math.max(0,(Date.now()-m.start)/1000);start=NOW-passado;
     stats={mortes:0,fugas:0,killers:{},viradas:[],niveis:0,lista:[],lendas:[],vingancas:[]};shown="";myLog=[];
     const mf=MEU&&byName.get(MEU);myIn=!!(mf&&!mf.dead);
@@ -1427,7 +1466,7 @@ const TIDE=window.TIDE=(()=>{
   function begin(){
     if(state==="run")return;const roster={};for(const f of fish)if(!f.dead&&f.b&&f.b.alive)roster[f.name]=f.b;
     simularEstrategias();
-    mareN++;ev=MARE.rodar(roster,mareN,DUR);i=0;start=NOW;state="run";removals=[];
+    mareN++;rosterL=roster;vivosL=Object.keys(roster);ev=MARE.rodar(roster,mareN,DUR);i=0;start=NOW;state="run";removals=[];
     stats={mortes:0,fugas:0,killers:{},viradas:[],niveis:0,lista:[],lendas:[],vingancas:[]};shown="";myLog=[];
     const mf=MEU&&byName.get(MEU);myIn=!!(mf&&!mf.dead);
     if(myIn){$("card").hidden=true;found=mf;startFollow(mf);alerta(`Maré começou! Câmera no seu bicho: ${MEU} (${mf.s.nome})`,"info")}
@@ -1503,6 +1542,9 @@ const TIDE=window.TIDE=(()=>{
     // guarda o resumo para rever depois em "Maré de hoje"
     ultima=R;shown="";render();showRecap(R);updateTemp();
     if(LIVE){setTimeout(()=>carregarEstado(fimT),25e3);return}
+    // protótipo: pérolas calculadas aqui com as mesmas regras do robô
+    if(rosterL){const G=MARE.ganhos(ev,rosterL,vivosL);for(const [n,g] of Object.entries(G)){const c=CARTEIRA[n]??={p:0,s:0},t=g.sob+g.fug+g.ab;c.p+=t;c.g=t;c.m=mareN}
+      if(MEU&&G[MEU])setTimeout(()=>aviso(`🦪 +${CARTEIRA[MEU].g} pérolas por sobreviver à maré · você tem ${CARTEIRA[MEU].p}`),3500)}
     if(fimT)setTimeout(()=>fimTemporada(),400)}
   function render(){const el=$("tide");let key;
     if(state==="run"){const left=Math.max(0,DUR-(NOW-start));key="run";
@@ -1577,6 +1619,24 @@ const GUIA_ESTR=[
   {k:"auto",ic:"🎲",nome:"Automático",cmt:"",cor:"#8fb3c0",risco:4.9,xp:100,
    pro:["Não precisa fazer nada"],contra:["Sem nenhuma vantagem"],
    dica:"É o que acontece com quem não comenta no post do dia."}];
+/* ---------- guia das pérolas ---------- */
+function showPerolas(){const c=MEU?cartDe(MEU):null;
+  const linha=(ic,t,v,d)=>`<div class="pg-l"><span class="ic">${ic}</span><span class="t"><b>${t}</b>${d?`<small>${d}</small>`:""}</span><span class="v">${v}</span></div>`;
+  const cmd=(ic,k,v,d)=>`<div class="pg-l"><span class="ic">${ic}</span><span class="t"><b>Comente <code>${k}</code></b><small>${d}</small></span><span class="v">${v}</span><button type="button" class="ghost es-cp" data-cmt="${k}">Copiar</button></div>`;
+  showCard(`<div class="es"><div class="k">Pérolas</div><div class="hc-t" style="color:#ffe0a3;text-shadow:none;font-size:24px">🦪 O prêmio de ficar vivo</div>
+    ${c?`<p style="margin:4px 0 8px">${esc(MEU)} tem <b style="color:#ffe0a3">${c.p} ${c.p===1?"pérola":"pérolas"}</b>${c.s>1?` · 🔥 ${c.s} dias seguidos`:""}</p>`:""}
+    <p class="pg-s">Como ganhar</p>
+    ${linha("🌊","Sobreviver a uma maré","+"+PE.sobreviver)}${linha("💨","Cada fuga de um ataque","+"+PE.fuga)}${linha("⚔️","Cada abate","+"+PE.abate)}
+    ${linha("🔥","Comentar 3 dias seguidos","+"+PE.seq3,"conta qualquer comentário no post do dia")}${linha("🔥","A cada 7 dias seguidos","+"+PE.seq7)}
+    <p class="pg-s">Como gastar (no post do dia, até as 20h55)</p>
+    ${cmd("🎰","ROLETA",PE.roleta,"Sorteia outra espécie, com as mesmas chances do começo. Pode vir um Megalodon… ou outra sardinha. Volta ao nível 1. Uma vez por dia.")}
+    ${cmd("❤️","CURAR",PE.curar,"Recupera metade da vida antes da maré.")}
+    <p class="pg-s">Morreu?</p>
+    ${cmd("🌱","RENASCER","grátis","A partir do dia seguinte, qualquer comentário no post do dia traz você de volta como um bicho novo sorteado. Você guarda as pérolas e quem te matou vira seu rival.")}
+    <p class="rc-p">Pérolas não dão força na luta. Na temporada nova (a cada ${TEMP.MARES} marés), cada um guarda até ${PE.guardar} pérolas.</p>
+    <div class="acts"><button class="ghost" data-act="close">Fechar</button></div></div>`);
+  const el=$("card");el.classList.add("hallc");el.style.borderColor="#ffd68c66";
+  el.querySelectorAll(".es-cp").forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.cmt);b.textContent="Copiado!"}catch(e){b.textContent=b.dataset.cmt}})}
 function showEstr(){const mf=MEU&&byName.get(MEU),meu=mf&&!mf.dead;
   const html=`<div class="es"><div class="k">Estratégias</div><div class="hc-t" style="color:var(--text);text-shadow:none;font-size:24px">Como seu bicho joga a maré?</div>
     <div class="es-como"><b>Como escolher</b><ol><li>Abra o <b>post do dia</b> no nosso Instagram.</li><li>Comente a palavra da estratégia, por exemplo <code>ATACAR</code>.</li><li>Faça isso até as <b>21h</b>: a maré lê os comentários e aplica a estratégia no seu bicho.</li></ol><small>Vale só para a próxima maré. No dia seguinte, comente de novo; quem não comenta joga no Automático.</small></div>
@@ -1675,6 +1735,7 @@ function fimTemporada(){
   const lendas=vivos.filter(f=>f.lend).slice(0,5).map(f=>info(f.b,true,f));
   const ving=[...vivos.map(f=>f.b),...[...MORTOS.values()].map(m=>m.b)].filter(b=>b.vingou).slice(0,5).map(b=>({a:b.name,b:b.vingou.name,como:b.vingou.como}));
   const h={n:TEMP.n,mares:mareN-TEMP.inicio,sobrev,cacad,lendas,ving,mortos:MORTOS.size,vivos:vivos.length};
+  for(const c of Object.values(CARTEIRA))c.p=Math.min(c.p,PE.guardar);
   TEMP.hall.unshift(h);TEMP.hall=TEMP.hall.slice(0,10);try{localStorage.setItem("aq_hall",JSON.stringify(TEMP.hall))}catch(e){}
   // guarda quem matou quem: quem renascer volta com vingança marcada
   ASSASSINO.clear();for(const [n,m] of MORTOS)if(m.b.killedBy)ASSASSINO.set(n,m.b.killedBy.name);
@@ -1703,6 +1764,20 @@ function avisoAceleracao(certo){
 
 /* ---------- modo ao vivo: dados reais vindos do robô ---------- */
 let ASSASSINOS={},novosDesde=0;
+/* ---------- pérolas: carteira por @ (vem do robô; no protótipo é calculada aqui) ---------- */
+let CARTEIRA={};const PE=MARE.PEROLAS;
+const cartDe=n=>CARTEIRA[n]||{p:0,s:0};
+function sorteioSp(){let r=Math.random(),a=0;for(const sp of SPECIES){a+=sp.p/100;if(r<a)return sp.id}return SPECIES[0].id}
+function avisoFeed(html){if(QUIET)return;const el=document.createElement("div");el.className="toast kill";el.innerHTML=`<span>${html}</span>`;const feed=$("feed");feed.prepend(el);while(feed.children.length>4)feed.lastChild.remove()}
+let alertaT=0;function aviso(txt){const el=$("alert");el.textContent=txt;el.className="alert good";el.hidden=false;clearTimeout(alertaT);alertaT=setTimeout(()=>{el.hidden=true},7000)}
+// o que acontece logo antes da maré: renascer, roleta e cura
+function aplicarPre(pre){for(const x of pre||[]){
+  if(x.tipo==="renasce"){MORTOS.delete(x.name);SKEL.del(x.name);const f=addFish(x.name,false,false,x.sp);if(!f)continue;f.b.rival=x.rival||null;f.b.bornAt=mareN;
+    avisoFeed(`🌱 <b>${esc(x.name)}</b> renasceu como <b>${spNome(x.sp)}</b>`);if(x.name===MEU)aviso(`🌱 Você renasceu como ${spNome(x.sp)}!`)}
+  else if(x.tipo==="roleta"){const o=byName.get(x.name);if(!o)continue;const nb=MARE.trocaEspecie(o.b,x.para),pos=[o.x,o.y,o.z],seg=found===o&&follow;removeWhere(f=>f===o);
+    const f=addFish(x.name,false,false,x.para);if(!f)continue;f.b=nb;f.x=pos[0];f.y=pos[1];f.z=pos[2];newTarget(f);if(seg)startFollow(f);
+    avisoFeed(`🎰 <b>${esc(x.name)}</b> girou a roleta: ${spNome(x.de)} → <b>${spNome(x.para)}</b>`);if(x.name===MEU)aviso(`🎰 Roleta: ${spNome(x.de)} → ${spNome(x.para)}!`)}
+  else if(x.tipo==="cura"){const f=byName.get(x.name);if(f&&f.b){f.b.hp=x.hp;f.hpv=x.hp/x.max;f.hpShow=NOW+5;pop(f,"+vida","lvl")}}}}
 // aplica a ficha oficial no bicho (nível muda o tamanho; nível 5 vira lenda)
 function aplicarFicha(f,b){f.b=b;f.size=(f.size0||f.size)*Math.pow(1.07,Math.max(0,b.lvl-1));f.L=f.s.len*f.size;if(b.lvl>=MARE.MAXN)virarLenda(f)}
 function skelPos(n){const r=rng(hash(n+"#skel"));return [-BX*.9+r()*BX*1.8,BZ0*.9+r()*(BZ1-BZ0)*.9]}
@@ -1716,11 +1791,13 @@ async function carregarEstado(fimT){
     // se o estado novo ainda não saiu (o robô promove 15 s depois da maré), tenta de novo
     if(fimT!==undefined&&e.mareN<mareN){setTimeout(()=>carregarEstado(fimT),15e3);return}
     const mudouTemp=e.temp!==TEMP.n;
-    TEMP.n=e.temp||1;TEMP.inicio=e.inicio||0;TEMP.MARES=e.MARES||10;TEMP.hall=e.hall||[];mareN=e.mareN||0;ASSASSINOS=e.assassinos||{};
+    TEMP.n=e.temp||1;TEMP.inicio=e.inicio||0;TEMP.MARES=e.MARES||14;TEMP.hall=e.hall||[];mareN=e.mareN||0;ASSASSINOS=e.assassinos||{};
     const vivos=new Set((e.vivos||[]).map(b=>b.name));
     if(mudouTemp&&fish.length)removeWhere(f=>!f.test);
     updateBounds((e.vivos||[]).length,true); // o aquário já abre no tamanho certo para todo mundo
-    for(const b of e.vivos||[]){const f=byName.get(b.name)||addFish(b.name,false,false,b.sp);if(f)aplicarFicha(f,b)}
+    for(const b of e.vivos||[]){let f=byName.get(b.name);if(f&&f.s.id!==b.sp){removeWhere(x=>x===f);f=null}f=f||addFish(b.name,false,false,b.sp);if(f)aplicarFicha(f,b)}
+    CARTEIRA=e.carteira||{};
+    if(fimT!==undefined&&MEU){const c=CARTEIRA[MEU];if(c&&c.m===e.mareN&&c.g)aviso(`🦪 +${c.g} pérolas por sobreviver à maré · você tem ${c.p}${c.p>=PE.roleta?" · já dá para girar a ROLETA!":""}`)}
     MORTOS.clear();SKEL.clear();
     for(const m of e.mortos||[]){const s=SPECIES.find(x=>x.id===m.b.sp)||SPECIES[0];MORTOS.set(m.b.name,{b:m.b,s,como:m.como});const [x,z]=skelPos(m.b.name);SKEL.add(m.b.name,s,x,z,s.len)}
     novosDesde=e.snapRow||0;const novos=await buscarNovos(false),nset=new Set(novos.map(f=>f.name));
@@ -1835,6 +1912,7 @@ menu.querySelectorAll("[data-m]").forEach(b=>b.addEventListener("click",()=>{con
     $("card").classList.add("hallc");$("card").style.borderColor="#ffd36a66";renderHall()}
   else if(m==="rar")showRar()
   else if(m==="estr")showEstr()
+  else if(m==="perolas")showPerolas()
   else if(m==="cred"){const d=document.querySelector("details.credits");showCard(`<div class="k">Créditos</div><div class="hc-t" style="color:var(--text);text-shadow:none;font-size:22px">Modelos 3D</div><div class="cred">${[...d.children].filter(x=>x.tagName!=="SUMMARY").map(x=>x.outerHTML).join("")}</div><div class="acts"><button class="ghost" data-act="close">Fechar</button></div>`);$("card").classList.add("hallc")}}));
 $("camnext").addEventListener("click",()=>{vista=(vista+1)%VISTAS.length;if(camMode!=="fixa")setCam("fixa",true)});
 {let m=null;try{m=localStorage.getItem("aq_cam")}catch(e){}setCam(m==="fixa"||m==="livre"?m:(MOBILE?"fixa":"livre"))}
