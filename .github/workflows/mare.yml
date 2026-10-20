@@ -1,0 +1,43 @@
+name: Maré diária
+
+on:
+  # roda às 20h05 e às 20h35 (Brasília); o segundo horário é reserva caso o primeiro atrase
+  schedule:
+    - cron: "5 23 * * *"
+    - cron: "35 23 * * *"
+  workflow_dispatch:
+    inputs:
+      forcar:
+        description: "1 = rodar uma maré de teste agora (começa em 1 minuto)"
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mare
+  cancel-in-progress: false
+
+jobs:
+  mare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Calcular e publicar a maré
+        run: node robo.mjs
+        env:
+          AQUA_API: ${{ vars.AQUA_API }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          FORCAR: ${{ github.event.inputs.forcar || '0' }}
+      - name: Registrar a maré (mantém o agendamento do GitHub ativo)
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > ultima-mare.txt
+          git config user.name "robo-da-mare"
+          git config user.email "robo-da-mare@users.noreply.github.com"
+          git add ultima-mare.txt
+          git commit -m "Maré registrada" || exit 0
+          git push
