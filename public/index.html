@@ -639,9 +639,10 @@ controls.addEventListener("start",()=>{controls.autoRotate=false;flyT=0});
 // navio naufragado: fica num ponto fixo do fundo do mar e ganha uma vista própria
 const SHIP={x:-24,z:-52,s:44,r:27,ry:.55,tilt:.3};
 const VISTAS=[
-  {nome:"Recife",   p:[0,15,46],  t:[0,13,-6], pv:[0,17,62]},
+  {nome:"Meio da água",p:[0,24,44],t:[0,15,-14],pv:[0,25,62]},
   {nome:"Naufrágio",fixo:true,p:[SHIP.x+30,9,SHIP.z+34],t:[SHIP.x,10,SHIP.z],pv:[SHIP.x+52,15,SHIP.z+66]},
-  {nome:"Do alto",  p:[38,34,36], t:[0,10,-8], pv:[48,40,50]},
+  // acima da água: a câmera fica parada perto da rota do barco e vai virando para acompanhá-lo
+  {nome:"Superfície",fixo:true,barco:true,p:[22,61,52],t:[0,52,-18],pv:[26,63,64]},
 ];
 let camMode="livre",vista=0;
 const vP=new THREE.Vector3(),vT=new THREE.Vector3();
@@ -655,7 +656,7 @@ function camFixa(dt,t){
   const V=VISTAS[vista],k=V.fixo?1:Math.min(1.6,BX/68),port=innerWidth<innerHeight,P=port?V.pv:V.p;
   // balanço lento para a cena não parecer congelada
   vP.set(P[0]*k+Math.sin(t*.11)*4,P[1]+Math.sin(t*.17)*1.5,P[2]*k+Math.cos(t*.09)*3);
-  vT.set(V.t[0]*k+Math.sin(t*.07)*3,V.t[1],V.t[2]*k);
+  if(V.barco)vT.set(BARCO.position.x,52.5,BARCO.position.z);else vT.set(V.t[0]*k+Math.sin(t*.07)*3,V.t[1],V.t[2]*k);
   const a=Math.min(1,dt*1.2);camera.position.lerp(vP,a);controls.target.lerp(vT,a)}
 function resize(){const w=innerWidth,h=innerHeight;pr=prFor(ql);renderer.setPixelRatio(pr);renderer.setSize(w,h,false);camera.aspect=w/h;
   camera.updateProjectionMatrix();}
@@ -904,7 +905,7 @@ function addObst(x,z,r,top){const o={x,z,r,top};OBTOP=Math.max(OBTOP,top);
 // empurra um ponto (bicho, alvo ou câmera) para fora dos obstáculos: perto do topo passa por cima, no meio contorna pelo lado
 function desvia(p,raio,folga){if(p.y>OBTOP+folga)return false;const i=obIdx(p.x,p.z);if(i<0||p.y>OBH[i]+folga)return false;const c=OBL[i];if(!c)return false;let mexeu=false;
   for(const o of c){if(p.y>o.top+folga)continue;const dx=p.x-o.x,dz=p.z-o.z,rr=o.r+raio,d2=dx*dx+dz*dz;if(d2>=rr*rr)continue;
-    if(p.y>o.top-1.5)p.y=o.top+folga;else{const d=Math.sqrt(d2)||.001;p.x=o.x+dx/d*rr;p.z=o.z+dz/d*rr}mexeu=true}
+    if(p.y>o.top-1.5)p.y=o.top+folga;else{const d=Math.sqrt(d2)||.001;p.x=o.x+dx/d*rr;p.z=o.z+dz/d*rr}mexeu=o}
   return mexeu}
 if(THREE.GLTFLoader&&window.AQUA_MODELS){
   const L=new THREE.GLTFLoader();
@@ -1049,7 +1050,13 @@ function darNivel(f,l){const b=f.b;b.lvl=l;b.xp=MARE.XP_NIVEL[l-1]||0;b.hp=MARE.
 const fish=[],byName=new Map(),dummy=new THREE.Object3D();dummy.rotation.order="YZX";
 let BX=68,BZ0=-48,BZ1=28;const BY0=3,BY1=42;
 // o aquário cresce com a população: até 3x mais largo e fundo quando lota
-function updateBounds(extra=0){const k=Math.min(2.9,Math.max(1,Math.sqrt((fish.length+extra)/300)));BX=68*k;BZ0=-48*k;BZ1=28*k}
+function updateBounds(extra=0,soCresce=false){const k=Math.min(2.9,Math.max(1,Math.sqrt((fish.length+extra)/300)));if(soCresce&&68*k<=BX)return;const bx0=BX;BX=68*k;BZ0=-48*k;BZ1=28*k;
+  if(BX>bx0*1.15&&fish.length>50)espalhar()}
+// quando o aquário cresce de uma vez, quem está fora da tela é levado para as partes novas (ninguém vê o salto)
+function espalhar(){const U=()=>[-BX+Math.random()*BX*2,BZ0+Math.random()*(BZ1-BZ0)];
+  for(const sc of SCHOOLS){if(Math.random()<.5)continue;const [x,z]=U();sc.x=x;sc.z=z;newTarget(sc)}
+  for(const f of fish){if(!f.fora||f.dead||f===found||f.home)continue;
+    if(f.school){const sc=f.school;f.x=sc.x+f.off[0];f.y=sc.y+f.off[1];f.z=sc.z+f.off[2]}else if(Math.random()<.6){const [x,z]=U();f.x=x;f.z=z;newTarget(f)}}}
 // quanto maior o aquário, mais espalhados ficam os bichos em volta da casa (pedra, coral, anêmona)
 const HK=()=>Math.min(2.2,BX/68);
 // hábitos de cada espécie: faixa de profundidade (y), território (casa e raio) e pausas
@@ -1061,7 +1068,7 @@ const HABITO={
   tartaruga:{y:[6,36],surf:.3},tubarao:{y:[8,34]},orca:{y:[12,40]},baleia:{y:[20,42]},megalodon:{y:[4,22]},
   sardinha:{y:[8,36]},golfinho:{y:[10,40]}};
 function newTarget(f){const H=HABITO[f.s.id]||{};let x,z,y;
-  if(f.home){const hr=H.r*HK();x=f.home[0]+(Math.random()*2-1)*hr;z=f.home[1]+(Math.random()*2-1)*hr}else{x=R(-BX,BX);z=R(BZ0,BZ1)}
+  if(f.home){const hr=H.r*HK()*Math.min(2.5,1+((f.casa&&f.casa.n)||0)/12);x=f.home[0]+(Math.random()*2-1)*hr;z=f.home[1]+(Math.random()*2-1)*hr}else{x=R(-BX,BX);z=R(BZ0,BZ1)}
   if(H.floor)y=floorH(x,z)+R(H.y[0],H.y[1]);
   else{if(H.surf&&Math.random()<H.surf)y=R(42,48);else if(H.y)y=R(H.y[0],H.y[1]);else y=R(BY0,BY1);y=Math.max(y,BY0+f.L*.15)}
   {const q={x,y,z};desvia(q,(f.L||2)*.4+1,1);x=q.x;y=q.y;z=q.z}
@@ -1090,14 +1097,15 @@ function addFish(name,near,test,spId){
     else{let pool=H.home==="any"?null:HOMES[H.home];if(pool&&!pool.length)pool=HOMES.coral;
       // só casas dentro do aquário atual (o fundo é maior que o aquário quando tem pouca gente)
       if(pool){const ok=pool.filter(h=>Math.abs(h[0])<BX+15&&h[1]>BZ0-15&&h[1]<BZ1+15);if(ok.length)pool=ok}
-      const p=pool&&pool.length?pool[r()*pool.length|0]:[-BX+r()*BX*2,BZ0+r()*(BZ1-BZ0)];
-      f.home=[p[0],p[1]];const hr=H.r*HK();f.x=p[0]+(r()-.5)*hr;f.z=p[1]+(r()-.5)*hr;f.y=floorH(f.x,f.z)+H.y[0]+r()*(H.y[1]-H.y[0])}}
+      const ux=-BX+r()*BX*2,uz=BZ0+r()*(BZ1-BZ0);let p=[ux,uz];
+      if(pool&&pool.length){let bd=1e18;for(const h of pool){const d=(h[0]-ux)**2+(h[1]-uz)**2;if(d<bd){bd=d;p=h}}p.n=(p.n||0)+1}
+      f.home=[p[0],p[1]];f.casa=p;const hr=H.r*HK()*Math.min(2.5,1+(p.n||0)/12);f.x=p[0]+(r()-.5)*hr;f.z=p[1]+(r()-.5)*hr;f.y=floorH(f.x,f.z)+H.y[0]+r()*(H.y[1]-H.y[0])}}
   else f.y=Math.max(f.y,BY0+f.L*.15);
   newTarget(f);if(!near)joinSchool(f);
   if(test)f.test=true;
   list.push(f);fish.push(f);byName.set(n,f);
   if(s.mega){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:"#ff3a50",transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false}));scene.add(g);megaGlows.push([g,f])}
-  if((fish.length&31)===0)updateBounds();
+  if((fish.length&31)===0)updateBounds(0,true);
   countsDirty=true;return f;
 }
 function step(f,dt,t){
@@ -1130,7 +1138,13 @@ function step(f,dt,t){
       const fora=Math.atan2(-(f.z-o.z),f.x-o.x);let a1=fora+1.5708,a2=fora-1.5708;
       const d1=Math.abs(Math.atan2(Math.sin(a1-f.yaw),Math.cos(a1-f.yaw))),d2=Math.abs(Math.atan2(Math.sin(a2-f.yaw),Math.cos(a2-f.yaw)));
       const alvo=d1<d2?a1:a2,dy=Math.atan2(Math.sin(alvo-f.yaw),Math.cos(alvo-f.yaw)),tv=6*dt;f.yaw+=Math.max(-tv,Math.min(tv,dy));break}
-    if(ia<0&&desvia(f,f.L*.3,f.L*.15)&&!f.chase&&f.tt>1)f.tt=Math.min(f.tt,1)}
+    const o=desvia(f,f.L*.3,f.L*.15);
+    if(o&&f.y<o.top){const fora=Math.atan2(-(f.z-o.z),f.x-o.x),a1=fora+1.5708,a2=fora-1.5708,
+        e1=Math.atan2(Math.sin(a1-f.yaw),Math.cos(a1-f.yaw)),e2=Math.atan2(Math.sin(a2-f.yaw),Math.cos(a2-f.yaw)),e=Math.abs(e1)<Math.abs(e2)?e1:e2,tv=4*dt;
+      f.yaw+=Math.max(-tv,Math.min(tv,e));
+      // encostado por muito tempo: escolhe outro destino (quem caça continua atrás da presa)
+      if(!f.chase){f.preso=(f.preso||0)+dt;if(f.preso>.7){f.preso=0;if(!f.school)newTarget(f)}}}
+    else if(f.preso)f.preso=Math.max(0,f.preso-dt)}
   // o chão nunca passa de 1,65: longe dele não precisa medir
   if(f.y>2.7+f.L*.17)return;
   let fl;if(s.id==="raia"){const w=f.L*.45,sx=Math.sin(f.yaw)*w,sz=Math.cos(f.yaw)*w,fx=Math.cos(f.yaw)*f.L*.2,fz=-Math.sin(f.yaw)*f.L*.2;
@@ -1705,6 +1719,7 @@ async function carregarEstado(fimT){
     TEMP.n=e.temp||1;TEMP.inicio=e.inicio||0;TEMP.MARES=e.MARES||10;TEMP.hall=e.hall||[];mareN=e.mareN||0;ASSASSINOS=e.assassinos||{};
     const vivos=new Set((e.vivos||[]).map(b=>b.name));
     if(mudouTemp&&fish.length)removeWhere(f=>!f.test);
+    updateBounds((e.vivos||[]).length,true); // o aquário já abre no tamanho certo para todo mundo
     for(const b of e.vivos||[]){const f=byName.get(b.name)||addFish(b.name,false,false,b.sp);if(f)aplicarFicha(f,b)}
     MORTOS.clear();SKEL.clear();
     for(const m of e.mortos||[]){const s=SPECIES.find(x=>x.id===m.b.sp)||SPECIES[0];MORTOS.set(m.b.name,{b:m.b,s,como:m.como});const [x,z]=skelPos(m.b.name);SKEL.add(m.b.name,s,x,z,s.len)}
