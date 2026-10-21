@@ -43,7 +43,7 @@ const MARE=(()=>{
   function ganhaXp(b,x,ev,t){if(b.lvl>=MAXN||!b.alive)return;b.xp+=Math.round(x*(b.estr==="atacar"?1.5:1));
     while(b.lvl<MAXN&&b.xp>=XP_NIVEL[b.lvl]){const old=maxHp(b);b.lvl++;b.hp+=maxHp(b)-old;ev.push({t,type:"nivel",a:b.name,lvl:b.lvl})}}
   // roda uma maré: recebe o elenco (objeto nome -> ficha) e o número da maré; devolve os eventos em ordem de tempo
-  function rodar(roster,mareN,dur=70){
+  function rodar(roster,mareN,dur=120){
     const R=rngOf(hashStr("mare#"+mareN)^Object.keys(roster).length),ev=[];
     const vivos=Object.values(roster).filter(b=>b.alive);
     const porTier={};for(const b of vivos){const tr=STATS[b.sp].tier;(porTier[tr]??=[]).push(b)}

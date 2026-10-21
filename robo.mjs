@@ -79,7 +79,11 @@ for (const s of estr) if (roster[s.name] && roster[s.name].alive) { roster[s.nam
 const ordenado = {}; for (const n of Object.keys(roster).sort()) ordenado[n] = roster[n];
 const vivosAntes = Object.keys(ordenado).filter(n => ordenado[n].alive);
 
-const ev = MARE.rodar(ordenado, mareN, 70);
+// estratégias de cada um (o site usa para o bicho nadar diferente durante a maré: esconder, atacar, cardume)
+const modos = { a: [], e: [], c: [] };
+for (const [n, b] of Object.entries(ordenado)) if (b.alive) { if (b.estr === "atacar") modos.a.push(n); else if (b.estr === "esconder") modos.e.push(n); else if (b.estr === "cardume" && b.amigo) modos.c.push([n, b.amigo]) }
+const DUR = 120; // a batalha dura 2 minutos
+const ev = MARE.rodar(ordenado, mareN, DUR);
 const como = {}; for (const e of ev) if (e.type === "morte") como[e.b] = e.como || null;
 const vivos = Object.values(ordenado).filter(b => b.alive);
 const novosMortos = Object.values(ordenado).filter(b => !b.alive && b.diedAt === mareN).map(b => ({ b, como: como[b.name] || null }));
@@ -96,7 +100,7 @@ for (const [n, g] of Object.entries(G)) { const c = cart(n), bonus = MARE.bonusS
 for (const n of Object.keys(carteira)) { const c = carteira[n]; if (!c.p && !c.s && c.m !== mareN) delete carteira[n] }
 
 let proximo = { v: 1, temp, mareN, inicio: estado.inicio || 0, MARES, hora: 21, snap: inicio, snapRow: ultimaEntrada, vivos, mortos, assassinos: estado.assassinos || {}, hall: estado.hall || [], carteira };
-let metaNova = { pend_start: inicio, pend_dur: 70, mareN, ultima_mare_dia: hoje }, hallNovo = null;
+let metaNova = { pend_start: inicio, pend_dur: DUR, mareN, ultima_mare_dia: hoje }, hallNovo = null;
 if (fimT) {
   hallNovo = REGRAS.hall(temp, k, vivos, mortos.map(m => m.b));
   const assassinos = {}; for (const m of mortos) if (m.b.killedBy) assassinos[m.b.name] = m.b.killedBy.name;
@@ -105,7 +109,7 @@ if (fimT) {
   proximo = { v: 1, temp: temp + 1, mareN, inicio: mareN, MARES, hora: 21, snap: inicio, snapRow: ultimaEntrada, vivos: [], mortos: [], assassinos, hall: [hallNovo, ...(estado.hall || [])].slice(0, 10), carteira };
   metaNova = { ...metaNova, temp: temp + 1, temp_inicio_ts: foto };
 }
-await put("/admin/kv/mare", { n: mareN, start: inicio, dur: 70, temp, events: ev, R, hall: hallNovo, pre });
+await put("/admin/kv/mare", { n: mareN, start: inicio, dur: DUR, temp, events: ev, R, hall: hallNovo, pre, modos });
 await put("/admin/kv/proximo", proximo);
 await post("/admin/meta", metaNova);
 console.log(`Maré #${mareN} pronta: ${Object.keys(ordenado).length} bichos, ${R.mortes} mortes, ${pre.length} ações de pérolas/renascer, começa ${new Date(inicio).toISOString()}${fimT ? " · fim da temporada " + temp : ""}`);

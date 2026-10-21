@@ -125,7 +125,7 @@ async function renovarToken(env) {
 // quando a maré termina, o estado novo (já calculado pelo robô da maré) passa a valer
 async function promover(env) {
   const ps = +(await getMeta(env, "pend_start", 0)); if (!ps) return;
-  const dur = +(await getMeta(env, "pend_dur", 70));
+  const dur = +(await getMeta(env, "pend_dur", 120));
   if (Date.now() < ps + dur * 1000 + 15e3) return;
   const prox = await env.KV.get("proximo", "stream");
   if (prox) await env.KV.put("estado", prox);
