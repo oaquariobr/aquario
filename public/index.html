@@ -286,6 +286,35 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 .tide.idle .lbl b{color:var(--accent)}
 .mid{align-items:flex-start}
 .tide.on{align-self:center}
+/* painel da maré em andamento */
+.tide.on.hud{gap:12px;padding:6px 6px 6px 6px;border-radius:999px;background:linear-gradient(135deg,rgba(34,6,16,.9),rgba(5,22,34,.9));border:1px solid rgba(255,90,110,.38);
+  box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.03),0 0 26px rgba(255,60,90,.16);flex-wrap:nowrap;width:auto;animation:hudIn .5s cubic-bezier(.2,1.3,.4,1)}
+.hud-ring{position:relative;width:46px;height:46px;flex:none}
+.hud-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.hud-ring circle{fill:none;stroke-width:3.4}.hud-ring .trk{stroke:rgba(255,255,255,.1)}
+.hud-ring .prg{stroke:#ff5a6e;stroke-linecap:round;stroke-dasharray:119.38;transition:stroke-dashoffset .3s linear,stroke .4s;filter:drop-shadow(0 0 4px rgba(255,90,110,.8))}
+.hud-ring span{position:absolute;inset:0;display:grid;place-items:center;font:700 12px var(--f-num);color:#fff;font-variant-numeric:tabular-nums}
+.hud-txt{display:flex;flex-direction:column;line-height:1.15;min-width:0;padding-right:2px}
+.hud-k{font-size:10.5px;letter-spacing:.2em;color:#ffb3bf;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.hud-k b{font-family:var(--f-num);letter-spacing:.02em;color:#fff}
+.hud-k .live{width:7px;height:7px;border-radius:50%;background:#ff3b55;box-shadow:0 0 8px #ff3b55;animation:liveP 1.2s ease-in-out infinite}
+.hud-s{display:flex;align-items:baseline;gap:4px;margin-top:3px;white-space:nowrap;color:#e8f4f8}
+.hud-s b{font-family:var(--f-num);font-size:17px;font-variant-numeric:tabular-nums}.hud-s small{font-size:10.5px;opacity:.62;margin-right:2px}
+.hud-s .sep{width:1px;height:11px;background:rgba(255,255,255,.2);margin:0 6px}
+.hud-s b.pula{animation:pula .5s ease-out;color:#ff8a9a}
+.hud-bt{display:flex;gap:6px;margin-left:2px}
+.tide.on.hud .ic{display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;font-size:12px;font-weight:700;flex:none}
+.tide.on.hud .ic .e{font-size:13px;line-height:1}
+#tmine{background:rgba(255,255,255,.07);color:#fff;border:1px solid rgba(255,255,255,.2);box-shadow:none}
+#tview{background:linear-gradient(135deg,#8fe6ff,#4fb2ff);color:#04202e;border:0;box-shadow:0 4px 14px rgba(79,178,255,.35)}
+.tide.on.hud.fim{border-color:rgba(255,179,71,.6);box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 30px rgba(255,150,40,.3)}
+.tide.on.hud.fim .prg{stroke:#ffb347;filter:drop-shadow(0 0 5px rgba(255,179,71,.9))}
+.tide.on.hud.fim .hud-ring span{color:#ffd59a;animation:liveP .8s ease-in-out infinite}
+@keyframes liveP{50%{opacity:.35}}@keyframes pula{0%{transform:scale(1.6)}100%{transform:scale(1)}}
+@keyframes hudIn{from{opacity:0;transform:translateY(-10px) scale(.94)}to{opacity:1;transform:none}}
+@media (max-width:640px){.tide.on.hud{width:auto!important;border-radius:999px!important;padding:5px!important;gap:9px!important}
+  .tide.on.hud .ic{padding:8px 11px;flex:none!important}}
+@media (max-width:400px){.tide.on.hud .ic .t{display:none}.tide.on.hud .ic{padding:9px 11px}.tide.on.hud .ic .e{font-size:15px}}
 @media (max-width:640px){
   .dock{width:100%}
   .lg{display:none}
@@ -1407,7 +1436,7 @@ canvas.addEventListener("pointerup",e=>{if(!downAt||Math.hypot(e.clientX-downAt[
 const tagLayer=$("tags"),pool=[];for(let i=0;i<45;i++){const d=document.createElement("div");d.className="tag";d.hidden=true;d.innerHTML='<span class="n"></span><i class="hp" hidden><b></b></i>';d._n=d.firstChild;d._hp=d.lastChild;tagLayer.appendChild(d);pool.push(d)}
 const popLayer=$("pops"),popPool=[],pops=[];for(let i=0;i<30;i++){const d=document.createElement("div");d.className="pop";d.hidden=true;popLayer.appendChild(d);popPool.push(d)}
 let QUIET=false;
-function pop(f,txt,kind){if(!f||QUIET)return;const el=popPool.find(e=>e.hidden);if(!el)return;el.textContent=txt;el.className="pop "+kind;el.hidden=false;pops.push({el,f,t0:NOW,dx:(Math.random()-.5)*30})}
+function pop(f,txt,kind){if(!f||QUIET)return;const el=popPool.find(e=>e.hidden);if(!el)return;el.textContent=txt;el.className="pop "+kind;el.style.opacity=0;el.hidden=false;pops.push({el,f,t0:NOW,dx:(Math.random()-.5)*30})}
 let tagged=[],frameN=0,NOW=0;const v3=new THREE.Vector3();
 function pickTags(){
   const cp=camera.position,lim=showAll?(MOBILE?24:44):(MOBILE?8:14);
@@ -1576,10 +1605,18 @@ const TIDE=window.TIDE=(()=>{
   function render(){const el=$("tide");let key;
     if(state==="run"){const left=Math.max(0,DUR-(NOW-start));key="run";
       const mf=MEU&&byName.get(MEU),mine=!!(mf&&!mf.dead);key="run"+mine;
-      if(shown!==key){el.className="tide on";el.innerHTML='<span class="lbl">Maré #<b id="tn"></b> · <b id="tt"></b> · <b id="tk"></b></span>'+(mine?'<button type="button" class="ghost" id="tmine">Meu bicho</button>':"")+'<button type="button" id="tview">Ver ação</button>';
+      if(shown!==key){el.className="tide on hud";el.removeAttribute("role");el.onclick=null;
+        el.innerHTML='<div class="hud-ring"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="trk" cx="22" cy="22" r="19"/><circle class="prg" id="tring" cx="22" cy="22" r="19"/></svg><span id="tt"></span></div>'
+          +'<div class="hud-txt"><span class="hud-k"><i class="live"></i>MARÉ <b>#<span id="tn"></span></b></span><span class="hud-s"><b id="tk">0</b><small>mortes</small><i class="sep"></i><b id="tf">0</b><small>fugas</small></span></div>'
+          +'<div class="hud-bt">'+(mine?'<button type="button" class="ic" id="tmine" title="Seguir meu bicho"><span class="e">🎯</span><span class="t">Meu bicho</span></button>':"")+'<button type="button" class="ic" id="tview" title="Ver a caçada agora"><span class="e">👁</span><span class="t">Ver ação</span></button></div>';
+        hudK=-1;
         $("tview").onclick=()=>{const a=(lastHunt&&!lastHunt.dead&&lastHunt.chase)?lastHunt:fish.find(f=>f.chase&&!f.dead);if(a){found=a;startFollow(a)}};
         if(mine)$("tmine").onclick=()=>{const m=byName.get(MEU);if(m&&!m.dead){found=m;startFollow(m)}};shown=key}
-      $("tn").textContent=mareN;$("tt").textContent=(left/60|0)+":"+String(left%60|0).padStart(2,"0");$("tk").textContent=stats.mortes+(stats.mortes===1?" morte":" mortes")}
+      $("tn").textContent=mareN;$("tt").textContent=(left/60|0)+":"+String(left%60|0).padStart(2,"0");
+      $("tring").style.strokeDashoffset=(119.38*(1-left/DUR)).toFixed(2);el.classList.toggle("fim",left<15);
+      // número de mortes dá um "pulo" quando aumenta
+      if(stats.mortes!==hudK){const k=$("tk");k.textContent=stats.mortes;if(hudK>=0){k.classList.remove("pula");void k.offsetWidth;k.classList.add("pula")}hudK=stats.mortes}
+      $("tf").textContent=stats.fugas}
     else if(state==="espera"){if(shown!=="espera"){el.className="tide idle";el.innerHTML='<span class="lbl">🌊 A maré está chegando…</span>';el.onclick=null;shown="espera"}}
     else{key="idle";if(shown!==key){el.className="tide idle";el.setAttribute("role","button");el.tabIndex=0;
         el.innerHTML='<span class="lbl">🌊 Maré às '+HORA+'h · <b id="tc"></b></span>';el.onclick=cardMare;shown=key}
@@ -1594,7 +1631,7 @@ const TIDE=window.TIDE=(()=>{
     $("cmMeu").onclick=()=>{const f=MEU&&byName.get(MEU);if(f&&!f.dead)fishCard(f,false);else meuCard()};
     if(ultima)$("cmLast").onclick=()=>showRecap(ultima);if($("cmGo"))$("cmGo").onclick=()=>{$("card").hidden=true;agendado=NOW+10}}
   // suspense: nos últimos 12 segundos aparece a contagem na tela (e o som sobe, se estiver ligado)
-  let agendado=0,ctS=-1;
+  let agendado=0,ctS=-1,hudK=-1;
   function contagem(ms){const el=$("contagem");if(ms<=0||ms>12000){if(ctS>=0&&!el.classList.contains("go")){el.hidden=true}ctS=-1;return}
     const sN=Math.ceil(ms/1000);if(sN===ctS)return;
     if(ctS<0){el.hidden=false;el.classList.remove("go");$("ctT").textContent="A maré está chegando";if(window.SOM)SOM.suspense(ms/1000);
@@ -1888,7 +1925,9 @@ if(LIVE){
 
 /* ---------- sons do fundo do mar (gerados no navegador, sem arquivos) ---------- */
 const SOM=window.SOM=(()=>{
-  let ac=null,master,wet,on=false,nextBub=0,nextCall={baleia:6,orca:9,golfinho:3};
+  let ac=null,master,wet,on=false,nextBub=0,nextCall={baleia:6,orca:9,golfinho:3},duck=1;const AMB=[];
+  // durante a maré o som ambiente (correnteza, bolhas, cantos) fica mais baixo e a trilha aparece mais
+  function abaixa(k){duck=k;if(!ac)return;for(const [g,v] of AMB)g.gain.setTargetAtTime(v*k,ac.currentTime,.8)}
   const noiseBuf=(sec,brown)=>{const b=ac.createBuffer(1,ac.sampleRate*sec,ac.sampleRate),d=b.getChannelData(0);let l=0;
     for(let i=0;i<d.length;i++){const w=Math.random()*2-1;if(brown){l=(l+.02*w)/1.02;d[i]=l*3.5}else d[i]=w}return b};
   function start(){
@@ -1903,11 +1942,11 @@ const SOM=window.SOM=(()=>{
     const amb=ac.createBufferSource();amb.buffer=noiseBuf(6,true);amb.loop=true;
     const lp=ac.createBiquadFilter();lp.type="lowpass";lp.frequency.value=320;lp.Q.value=.7;
     const lfo=ac.createOscillator(),lfoG=ac.createGain();lfo.frequency.value=.07;lfoG.gain.value=160;lfo.connect(lfoG);lfoG.connect(lp.frequency);lfo.start();
-    const ag=ac.createGain();ag.gain.value=.55;amb.connect(lp);lp.connect(ag);ag.connect(master);amb.start();
+    const ag=ac.createGain();ag.gain.value=.55;amb.connect(lp);lp.connect(ag);ag.connect(master);amb.start();AMB.push([ag,.55]);
     // correnteza: chiado suave bem filtrado
     const cur=ac.createBufferSource();cur.buffer=noiseBuf(4,false);cur.loop=true;
     const bp=ac.createBiquadFilter();bp.type="bandpass";bp.frequency.value=900;bp.Q.value=.6;
-    const cg=ac.createGain();cg.gain.value=.025;cur.connect(bp);bp.connect(cg);cg.connect(master);cur.start();
+    const cg=ac.createGain();cg.gain.value=.025;cur.connect(bp);bp.connect(cg);cg.connect(master);cur.start();AMB.push([cg,.025]);
   }
   const pan=v=>{const p=ac.createStereoPanner?ac.createStereoPanner():ac.createGain();if(p.pan)p.pan.value=v;return p};
   function env(g,t,a,peak,r){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(.0001,t+a+r)}
@@ -1940,14 +1979,14 @@ const SOM=window.SOM=(()=>{
   // a cada quadro: bolhas aleatórias e cantos dos bichos grandes que estiverem perto da câmera
   const near={baleia:null,orca:null,golfinho:null};
   function tick(dt){if(!on)return;const t=ac.currentTime;
-    if(t>nextBub){nextBub=t+1.2+Math.random()*3.5;bolhas(.1,Math.random()*1.2-.6)}
+    if(t>nextBub){nextBub=t+1.2+Math.random()*3.5;bolhas(.1*duck,Math.random()*1.2-.6)}
     const cp=camera.position,right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
     for(const id in near){near[id]=null;let best=1e9;const i=SPECIES.findIndex(s=>s.id===id);if(i<0)continue;
       for(const f of lists[i]){const d=Math.hypot(f.x-cp.x,f.y-cp.y,f.z-cp.z)-(f===found&&follow?30:0);if(d<best){best=d;near[id]=[f,Math.max(0,d)]}}}
     for(const id in near){nextCall[id]-=dt;if(nextCall[id]>0||!near[id])continue;const [f,d]=near[id],range=id==="golfinho"?45:110;
       nextCall[id]=(id==="golfinho"?3:id==="orca"?7:9)+Math.random()*(id==="baleia"?10:5);if(d>range)continue;
       const vol=Math.pow(1-d/range,1.5),p=Math.max(-.8,Math.min(.8,right.dot(new THREE.Vector3(f.x-cp.x,f.y-cp.y,f.z-cp.z).normalize())));
-      if(id==="baleia")baleia(.22*vol,p);else if(id==="orca")orca(.08*vol,p);else golfinho(.12*vol,p)}}
+      if(id==="baleia")baleia(.22*vol*duck,p);else if(id==="orca")orca(.08*vol*duck,p);else golfinho(.12*vol*duck,p)}}
   function toggle(){if(!ac)start();on=!on;if(on)ac.resume();
     master.gain.cancelScheduledValues(ac.currentTime);master.gain.setTargetAtTime(on?.9:0,ac.currentTime,.4);
     if(!on)setTimeout(()=>{if(!on)ac.suspend()},1500);
@@ -1964,24 +2003,24 @@ const SOM=window.SOM=(()=>{
   function bumbo(t,v,dest){const o=ac.createOscillator(),g=ac.createGain();o.type="sine";o.frequency.setValueAtTime(120,t);o.frequency.exponentialRampToValueAtTime(40,t+.18);
     env(g,t,.004,v,.32);o.connect(g);g.connect(dest||master);o.start(t);o.stop(t+.4)}
   // contagem: um "tum" por segundo (dois nos 3 últimos)
-  function tique(forte){if(!on)return;const t=ac.currentTime;bumbo(t,forte?.55:.35);if(forte)bumbo(t+.18,.3)}
+  function tique(forte){if(!on)return;const t=ac.currentTime;bumbo(t,forte?.9:.6);if(forte)bumbo(t+.18,.5)}
   // subida de tensão até o começo, com pancada no final
-  function suspense(sec){if(!on)return;const t=ac.currentTime,T=Math.max(.5,sec);
+  function suspense(sec){if(!on)return;abaixa(.3);const t=ac.currentTime,T=Math.max(.5,sec);
     const n=ac.createBufferSource();n.buffer=noiseBuf(Math.ceil(T)+1,false);const bp=ac.createBiquadFilter();bp.type="bandpass";bp.Q.value=4;
-    bp.frequency.setValueAtTime(250,t);bp.frequency.exponentialRampToValueAtTime(3200,t+T);const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.16,t+T);g.gain.linearRampToValueAtTime(0,t+T+.05);
+    bp.frequency.setValueAtTime(250,t);bp.frequency.exponentialRampToValueAtTime(3200,t+T);const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.3,t+T);g.gain.linearRampToValueAtTime(0,t+T+.05);
     n.connect(bp);bp.connect(g);g.connect(master);g.connect(wet);n.start(t);n.stop(t+T+.1);
     const o=ac.createOscillator(),og=ac.createGain();o.type="sawtooth";o.frequency.setValueAtTime(55,t);o.frequency.exponentialRampToValueAtTime(220,t+T);
-    const lp=ac.createBiquadFilter();lp.type="lowpass";lp.frequency.value=600;og.gain.setValueAtTime(0,t);og.gain.linearRampToValueAtTime(.08,t+T);og.gain.linearRampToValueAtTime(0,t+T+.05);
+    const lp=ac.createBiquadFilter();lp.type="lowpass";lp.frequency.value=600;og.gain.setValueAtTime(0,t);og.gain.linearRampToValueAtTime(.16,t+T);og.gain.linearRampToValueAtTime(0,t+T+.05);
     o.connect(lp);lp.connect(og);og.connect(master);o.start(t);o.stop(t+T+.1);
-    const te=t+T;bumbo(te,1);const nb=ac.createBufferSource();nb.buffer=noiseBuf(1.2,true);const ng=ac.createGain();env(ng,te,.01,.7,1.1);nb.connect(ng);ng.connect(master);ng.connect(wet);nb.start(te)}
+    const te=t+T;bumbo(te,1.4);bumbo(te+.02,1);const nb=ac.createBufferSource();nb.buffer=noiseBuf(1.2,true);const ng=ac.createGain();env(ng,te,.01,1,1.2);nb.connect(ng);ng.connect(master);ng.connect(wet);nb.start(te)}
   // alarme curto quando o seu bicho é caçado
   function alarme(){if(!on)return;const t=ac.currentTime;for(let k=0;k<2;k++){const o=ac.createOscillator(),g=ac.createGain();o.type="square";o.frequency.setValueAtTime(k?660:880,t+k*.16);
-    env(g,t+k*.16,.005,.05,.14);o.connect(g);g.connect(master);o.start(t+k*.16);o.stop(t+k*.16+.2)}}
+    env(g,t+k*.16,.005,.08,.14);o.connect(g);g.connect(master);o.start(t+k*.16);o.stop(t+k*.16+.2)}}
   // música da batalha: baixo em ostinato, batida de coração, chimbal e cordas tensas que entram aos poucos
   let mus=null;const BAIXO=[55,55,65.41,55,55,82.41,55,49];const CORDA=[440,466.16,440,523.25,440,466.16,415.3,392];
-  function musica(liga){if(!liga){if(!mus)return;const m=mus;mus=null;clearInterval(m.timer);const t=ac.currentTime;m.bus.gain.cancelScheduledValues(t);m.bus.gain.setTargetAtTime(0,t,.6);
-      bumbo(t+.05,.9);setTimeout(()=>{for(const o of m.pad)try{o.stop()}catch(e){}m.bus.disconnect()},3500);return}
-    if(mus||!on||!ac)return;const t0=ac.currentTime+.05,bus=ac.createGain();bus.gain.setValueAtTime(0,t0);bus.gain.linearRampToValueAtTime(.34,t0+2);bus.connect(master);
+  function musica(liga){if(!liga){abaixa(1);if(!mus)return;const m=mus;mus=null;clearInterval(m.timer);const t=ac.currentTime;m.bus.gain.cancelScheduledValues(t);m.bus.gain.setTargetAtTime(0,t,.6);
+      bumbo(t+.05,1.1);abaixa(1);setTimeout(()=>{for(const o of m.pad)try{o.stop()}catch(e){}m.bus.disconnect()},3500);return}
+    if(mus||!on||!ac)return;const t0=ac.currentTime+.05,bus=ac.createGain();abaixa(.3);bus.gain.setValueAtTime(0,t0);bus.gain.linearRampToValueAtTime(.5,t0+2);bus.connect(master);
     const lp=ac.createBiquadFilter();lp.type="lowpass";lp.frequency.value=420;lp.Q.value=5;lp.connect(bus);const pad=[];
     for(const [f,d] of [[55,-9],[55,9],[82.41,0],[65.41,5]]){const o=ac.createOscillator(),g=ac.createGain();o.type="sawtooth";o.frequency.value=f;o.detune.value=d;g.gain.value=.045;o.connect(g);g.connect(lp);o.start(t0);pad.push(o)}
     const lfo=ac.createOscillator(),lg=ac.createGain();lfo.frequency.value=.11;lg.gain.value=160;lfo.connect(lg);lg.connect(lp.frequency);lfo.start(t0);pad.push(lfo);
