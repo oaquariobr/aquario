@@ -34,6 +34,25 @@ body{background:var(--deep);color:var(--text);font-family:var(--f-ui);overflow:h
 .perola-aviso{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,214,140,.45);background:rgba(255,214,140,.08)}
 .perola-aviso>b{color:#ffe0a3;font-size:14px}.perola-aviso .seq{margin-left:8px;font-size:12px;color:#ffb36b}.perola-aviso p{margin:5px 0;font-size:12px}.perola-aviso .ok{color:#8ff0a4;font-weight:600}
 .perola-aviso button{margin-top:6px;padding:5px 12px;font-size:12px}.perola-bt{display:flex;gap:6px;flex-wrap:wrap}.perola-bt button[disabled]{opacity:.4;cursor:default}
+.banner{position:fixed;left:50%;top:21%;transform:translateX(-50%);z-index:24;max-width:min(92vw,460px);padding:12px 20px;border-radius:16px;text-align:center;pointer-events:none;backdrop-filter:blur(6px);animation:bnIn .35s ease-out}
+.banner b{display:block;font-size:21px;line-height:1.2}.banner small{display:block;font-size:13px;opacity:.92;margin-top:4px}
+.banner.caca{background:rgba(92,8,22,.85);border:1px solid #ff5a6e;color:#ffe3e7;animation:bnIn .35s ease-out,bnPulsa .9s ease-in-out infinite}
+.banner.ataque{background:rgba(92,46,0,.82);border:1px solid #ffb347;color:#fff1dc}
+.vinheta{position:fixed;inset:0;z-index:4;pointer-events:none}
+.vinheta.caca{box-shadow:inset 0 0 140px 36px rgba(255,30,60,.55);animation:vnPulsa 1s ease-in-out infinite}
+.vinheta.ataque{box-shadow:inset 0 0 120px 24px rgba(255,150,40,.38)}
+@keyframes bnIn{from{opacity:0;transform:translate(-50%,-14px) scale(.92)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes bnPulsa{50%{box-shadow:0 0 34px rgba(255,60,80,.65)}}@keyframes vnPulsa{50%{opacity:.5}}
+.contagem{position:fixed;inset:0;z-index:22;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,0) 30%,rgba(0,8,16,.72) 100%);animation:ctIn .6s ease-out}
+.contagem[hidden]{display:none}.contagem .ct-t{font-size:15px;letter-spacing:.32em;text-transform:uppercase;color:#bfeaff;text-shadow:0 2px 12px #000}
+.contagem .ct-n{font-family:var(--f-num);font-size:min(30vw,150px);font-weight:800;color:#fff;line-height:1;text-shadow:0 0 30px rgba(120,210,255,.7),0 4px 20px #000}
+.contagem .ct-n.bate{animation:ctBate .9s ease-out}.contagem .ct-s{font-size:15px;color:#d8f2ff;margin-top:6px;text-shadow:0 2px 10px #000}
+.contagem #ctSom{pointer-events:auto;margin-top:16px;padding:8px 16px;font-size:13px}
+.contagem.go{background:radial-gradient(ellipse at center,rgba(40,140,200,.25) 0%,rgba(0,8,16,0) 70%);animation:ctGo 1.6s ease-out forwards}
+.contagem.go .ct-n{font-size:min(14vw,64px)}
+@keyframes ctIn{from{opacity:0}to{opacity:1}}@keyframes ctBate{0%{transform:scale(1.5);opacity:.2}30%{transform:scale(1);opacity:1}100%{transform:scale(.92);opacity:.85}}
+@keyframes ctGo{0%{opacity:0;transform:scale(.8)}20%{opacity:1;transform:scale(1.05)}75%{opacity:1}100%{opacity:0;transform:scale(1.15)}}
 .estr-aviso{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(127,200,255,.4);background:rgba(127,200,255,.09)}
 .estr-aviso>b{display:block;color:#9ad6ff;font-size:13px;margin-bottom:4px}.estr-aviso p{margin:4px 0;font-size:12px}
 .estr-aviso button{margin-top:6px;padding:5px 12px;font-size:12px}
@@ -363,6 +382,8 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 
 <div class="loading" id="loading">Enchendo o aquário…</div>
 <canvas id="gl" aria-label="Aquário 3D com bichos nadando, cada um com um @ do Instagram"></canvas>
+<div class="vinheta" id="vinheta" hidden></div><div class="banner" id="banner" hidden></div>
+<div class="contagem" id="contagem" hidden><div class="ct-t" id="ctT">A maré está chegando</div><div class="ct-n" id="ctN"></div><div class="ct-s" id="ctS"></div><button type="button" id="ctSom" hidden>🔊 Ligar o som da maré</button></div>
 <div id="tags"></div>
 <div id="pops"></div>
 <div class="ui">
@@ -511,7 +532,7 @@ const MARE=(()=>{
   function ganhaXp(b,x,ev,t){if(b.lvl>=MAXN||!b.alive)return;b.xp+=Math.round(x*(b.estr==="atacar"?1.5:1));
     while(b.lvl<MAXN&&b.xp>=XP_NIVEL[b.lvl]){const old=maxHp(b);b.lvl++;b.hp+=maxHp(b)-old;ev.push({t,type:"nivel",a:b.name,lvl:b.lvl})}}
   // roda uma maré: recebe o elenco (objeto nome -> ficha) e o número da maré; devolve os eventos em ordem de tempo
-  function rodar(roster,mareN,dur=70){
+  function rodar(roster,mareN,dur=120){
     const R=rngOf(hashStr("mare#"+mareN)^Object.keys(roster).length),ev=[];
     const vivos=Object.values(roster).filter(b=>b.alive);
     const porTier={};for(const b of vivos){const tr=STATS[b.sp].tier;(porTier[tr]??=[]).push(b)}
@@ -1090,7 +1111,8 @@ const HABITO={
   raia:{home:"any",r:70,y:[1.8,5],floor:1,rest:.25},
   tartaruga:{y:[6,36],surf:.3},tubarao:{y:[8,34]},orca:{y:[12,40]},baleia:{y:[20,42]},megalodon:{y:[4,22]},
   sardinha:{y:[8,36]},golfinho:{y:[10,40]}};
-function newTarget(f){const H=HABITO[f.s.id]||{};let x,z,y;
+function newTarget(f){if(f.modo&&!f.dead){const q=alvoModo(f);if(q){f.tx=q[0];f.ty=q[1];f.tz=q[2];f.tt=q[3];return}}
+  const H=HABITO[f.s.id]||{};let x,z,y;
   if(f.home){const hr=H.r*HK()*Math.min(2.5,1+((f.casa&&f.casa.n)||0)/12);x=f.home[0]+(Math.random()*2-1)*hr;z=f.home[1]+(Math.random()*2-1)*hr}else{x=R(-BX,BX);z=R(BZ0,BZ1)}
   if(H.floor)y=floorH(x,z)+R(H.y[0],H.y[1]);
   else{if(H.surf&&Math.random()<H.surf)y=R(42,48);else if(H.y)y=R(H.y[0],H.y[1]);else y=R(BY0,BY1);y=Math.max(y,BY0+f.L*.15)}
@@ -1142,12 +1164,14 @@ function step(f,dt,t){
   if(f.panic>t){boost=Math.max(boost,2);turnK=Math.max(turnK,3)}
   else if(f.slow>t)boost=.45;
   else if(f.rest>t&&!f.chase)boost=f.s.id==="raia"?.06:.15;
-  let schoolYaw=null;const inSchool=f.school&&!f.chase&&!(f.panic>t);
+  // durante a maré: quem escolheu Atacar nada rápido e em botes; Esconder vai para perto de uma pedra e fica quieto
+  if(f.modo&&!f.chase){if(f.modo==="a"){boost*=1.7;turnK*=1.8}else if(f.modo==="e"&&f.esc){const de=Math.abs(f.esc.x-f.x)+Math.abs(f.esc.z-f.z);boost=de<5?.22:Math.max(boost,1.3)}else if(f.modo==="c")boost*=1.15}
+  let schoolYaw=null;const inSchool=f.school&&!f.chase&&!(f.panic>t)&&!f.modo;
   if(inSchool){const sc=f.school,cy=Math.cos(sc.yaw),sy=Math.sin(sc.yaw),o=f.off;
     f.tx=sc.x+cy*o[0]+sy*o[2];f.ty=sc.y+o[1]+Math.sin(t*1.3+f.seed)*.35;f.tz=sc.z-sy*o[0]+cy*o[2];f.tt=5;
     const d=Math.sqrt((f.tx-f.x)**2+(f.ty-f.y)**2+(f.tz-f.z)**2);boost=Math.max(.4,Math.min(4,sc.speed*(.92+d*.3)/f.speed));turnK=4;if(d<1.6)schoolYaw=sc.yaw}
   f.tt-=dt;const dx=f.tx-f.x,dy=f.ty-f.y,dz=f.tz-f.z,hd=Math.sqrt((dx)**2+(dz)**2);
-  if(!f.chase&&!inSchool&&(hd<f.L*1.5+2||f.tt<0))newTarget(f);
+  if(!f.chase&&!inSchool&&((f.modo==='e'||f.modo==='c')?f.tt<0:(hd<f.L*1.5+2||f.tt<0)))newTarget(f);
   const want=schoolYaw!=null?schoolYaw:Math.atan2(-dz,dx);let dyaw=want-f.yaw;dyaw=Math.atan2(Math.sin(dyaw),Math.cos(dyaw));
   const turn=1.4/Math.sqrt(f.L)*turnK;f.yaw+=Math.max(-turn*dt,Math.min(turn*dt,dyaw));
   const wp=Math.max(-.3,Math.min(.3,Math.atan2(dy,hd+1)));f.pitch+=(wp-f.pitch)*Math.min(1,dt*1.2);
@@ -1196,7 +1220,7 @@ function layout(dt,t){
       sph.center.set(f.x,f.y,f.z);sph.radius=f.L*.75;if(!frustum.intersectsSphere(sph)){f.fora=true;continue}
       f.fora=false;
       const T=(!lo||f===found||f.L*f.L>K2*d2)?hi:lo,j=T.n++;
-      compor(T.mat.array,j*16,f.roll||0,f.yaw,f.pitch,f.x,f.y,f.z,f.size*sc);T.ph.array[j]=f.seed;T.sp.array[j]=f.spd;const c=T.col.array;let cr=f.c,cg=f.c,cb=f.c;if(f.flash>t){cr*=2.2;cg*=.35;cb*=.35}else if(f.dead){cr*=.5;cg*=.48;cb*=.5}else if(f.lend){cr*=1.28;cg*=1.12;cb*=.62}c[j*3]=cr;c[j*3+1]=cg;c[j*3+2]=cb;T.slots[j]=f}
+      compor(T.mat.array,j*16,f.roll||0,f.yaw,f.pitch,f.x,f.y,f.z,f.size*sc);T.ph.array[j]=f.seed;T.sp.array[j]=f.spd;const c=T.col.array;let cr=f.c,cg=f.c,cb=f.c;if(f.flash>t){cr*=2.2;cg*=.35;cb*=.35}else if(f.dead){cr*=.5;cg*=.48;cb*=.5}else if(f.lend){cr*=1.28;cg*=1.12;cb*=.62}else if(f.modo==='a'){cr*=1.2;cg*=.86;cb*=.84}c[j*3]=cr;c[j*3+1]=cg;c[j*3+2]=cb;T.slots[j]=f}
     upload(hi);if(lo)upload(lo);
   });
 }
@@ -1441,7 +1465,7 @@ applyQuality(ql);
 
 /* ---------- maré: batalha diária ---------- */
 const TIDE=window.TIDE=(()=>{
-  const DUR=70,HORA=21;let state="idle",start=0,ev=[],i=0,stats=null,ultima=null,removals=[],lastHunt=null,shown="",myLog=[],myIn=false,alertUntil=0;
+  let DUR=120;const HORA=21;let state="idle",start=0,ev=[],i=0,stats=null,ultima=null,removals=[],lastHunt=null,shown="",myLog=[],myIn=false,alertUntil=0;
   const F=n=>byName.get(n);
   // no modo ao vivo a maré é às 21h de Brasília para todo mundo
   const nextAt=()=>{if(LIVE){const t=Date.now(),d=new Date(t-3*3600e3);d.setUTCHours(HORA,0,0,0);let ms=d.getTime()+3*3600e3;if(ms<=t)ms+=864e5;return new Date(ms)}
@@ -1449,7 +1473,7 @@ const TIDE=window.TIDE=(()=>{
   let pend=null,esperaAte=0,ultimaBusca=0,rosterL=null,vivosL=[];
   // maré oficial: o robô publica os eventos; aqui só tocamos a animação no horário certo
   function beginLive(m){
-    if(state==="run")return;mareN=m.n;ev=m.events||[];i=0;state="run";removals=[];pend=null;aplicarPre(m.pre);
+    if(state==="run")return;mareN=m.n;DUR=m.dur||120;ev=m.events||[];i=0;state="run";removals=[];pend=null;aplicarPre(m.pre);modoMare(m.modos);comecou();
     const passado=Math.max(0,(Date.now()-m.start)/1000);start=NOW-passado;
     stats={mortes:0,fugas:0,killers:{},viradas:[],niveis:0,lista:[],lendas:[],vingancas:[]};shown="";myLog=[];
     const mf=MEU&&byName.get(MEU);myIn=!!(mf&&!mf.dead);
@@ -1466,7 +1490,8 @@ const TIDE=window.TIDE=(()=>{
   function begin(){
     if(state==="run")return;const roster={};for(const f of fish)if(!f.dead&&f.b&&f.b.alive)roster[f.name]=f.b;
     simularEstrategias();
-    mareN++;rosterL=roster;vivosL=Object.keys(roster);ev=MARE.rodar(roster,mareN,DUR);i=0;start=NOW;state="run";removals=[];
+    const mod={a:[],e:[],c:[]};for(const [n,b] of Object.entries(roster)){if(b.estr==="atacar")mod.a.push(n);else if(b.estr==="esconder")mod.e.push(n);else if(b.estr==="cardume"&&b.amigo)mod.c.push([n,b.amigo])}
+    mareN++;rosterL=roster;vivosL=Object.keys(roster);ev=MARE.rodar(roster,mareN,DUR);modoMare(mod);comecou();i=0;start=NOW;state="run";removals=[];
     stats={mortes:0,fugas:0,killers:{},viradas:[],niveis:0,lista:[],lendas:[],vingancas:[]};shown="";myLog=[];
     const mf=MEU&&byName.get(MEU);myIn=!!(mf&&!mf.dead);
     if(myIn){$("card").hidden=true;found=mf;startFollow(mf);alerta(`Maré começou! Câmera no seu bicho: ${MEU} (${mf.s.nome})`,"info")}
@@ -1482,6 +1507,7 @@ const TIDE=window.TIDE=(()=>{
   function meuEvento(e){
     const me=e.a===MEU?"a":"b",o=me==="a"?e.b:e.a,of=byName.get(o)||MORTOS.get(o),on=of?` (${of.s.nome})`:"";let txt="",k="info";
     if(e.type==="caca"){txt=me==="a"?`Seu bicho partiu para cima de ${o}${on}!`:`Cuidado! ${o}${on} está caçando você!`;k=me==="a"?"good":"bad";
+      if(me==="a")perigo("ataque","⚔ Hora do ataque!",`Seu bicho partiu para cima de ${o}${on}`);else perigo("caca","⚠ Alerta! Você está sendo caçado",`${o}${on} vem atrás de você`);
       const mf=byName.get(MEU);if(mf&&!mf.dead&&found!==mf){found=mf;startFollow(mf)}}
     else if(e.type==="mordida"){txt=me==="a"?`Você mordeu ${o}: -${e.dmg}`:`${o} te mordeu: -${e.dmg} de vida`;k=me==="a"?"good":"bad"}
     else if(e.type==="revide"){txt=me==="a"?`Você revidou em ${o}: -${e.dmg}`:`${o} revidou: -${e.dmg} de vida`;k=me==="a"?"good":"bad"}
@@ -1497,6 +1523,7 @@ const TIDE=window.TIDE=(()=>{
     if(MEU&&(e.a===MEU||e.b===MEU)&&!QUIET)setTimeout(()=>meuEvento(e),0);
     const A=F(e.a),B=F(e.b),t=NOW;
     if(e.type==="caca"){if(!A||!B||A.dead||B.dead)return;
+      if(follow&&found&&found.name!==MEU&&(A===found||B===found))perigo(B===found?"caca":"ataque",B===found?`⚠ ${found.name} está sendo caçado`:`⚔ ${found.name} vai atacar`,B===found?`${A.name} (${A.s.nome}) vem atrás`:`Alvo: ${B.name} (${B.s.nome})`);
       const d=Math.hypot(A.x-B.x,A.y-B.y,A.z-B.z);
       if(d>70){const a=Math.random()*6.28;A.x=B.x+Math.cos(a)*28;A.z=B.z+Math.sin(a)*28;A.y=Math.max(BY0+2,B.y+(Math.random()-.5)*8)}
       A.chase={v:B,bite:t+3.5,until:t+14};B.slow=t+3.5;lastHunt=A}
@@ -1525,7 +1552,7 @@ const TIDE=window.TIDE=(()=>{
   function bury(r){const V=r.f;MORTOS.set(V.name,{b:V.b,s:V.s,como:r.como});SKEL.add(V.name,V.s,V.x,V.z,V.L);
     const wasFound=found===V;removeWhere(f=>f===V);
     if(wasFound&&V.name!==MEU)obitoCard(MORTOS.get(V.name))}
-  function finish(){state="idle";next=nextAt();render();const fimT=mareN-TEMP.inicio>=TEMP.MARES;
+  function finish(){state="idle";next=nextAt();render();fimModo();if(window.SOM)SOM.musica(false);const fimT=mareN-TEMP.inicio>=TEMP.MARES;
     const spOf=n=>{const f=byName.get(n)||MORTOS.get(n);return f?f.s.id:null},nomeOf=n=>{const f=byName.get(n);return f?nomeDe(f):(MORTOS.get(n)||{s:{nome:"?"}}).s.nome};
     const tp=Object.entries(stats.killers).sort((a,b)=>b[1]-a[1])[0];
     const VB={veneno:"envenenou",ferrao:"ferroou",revide:"derrubou"};
@@ -1552,7 +1579,7 @@ const TIDE=window.TIDE=(()=>{
       if(shown!==key){el.className="tide on";el.innerHTML='<span class="lbl">Maré #<b id="tn"></b> · <b id="tt"></b> · <b id="tk"></b></span>'+(mine?'<button type="button" class="ghost" id="tmine">Meu bicho</button>':"")+'<button type="button" id="tview">Ver ação</button>';
         $("tview").onclick=()=>{const a=(lastHunt&&!lastHunt.dead&&lastHunt.chase)?lastHunt:fish.find(f=>f.chase&&!f.dead);if(a){found=a;startFollow(a)}};
         if(mine)$("tmine").onclick=()=>{const m=byName.get(MEU);if(m&&!m.dead){found=m;startFollow(m)}};shown=key}
-      $("tn").textContent=mareN;$("tt").textContent="0:"+String(left|0).padStart(2,"0");$("tk").textContent=stats.mortes+(stats.mortes===1?" morte":" mortes")}
+      $("tn").textContent=mareN;$("tt").textContent=(left/60|0)+":"+String(left%60|0).padStart(2,"0");$("tk").textContent=stats.mortes+(stats.mortes===1?" morte":" mortes")}
     else if(state==="espera"){if(shown!=="espera"){el.className="tide idle";el.innerHTML='<span class="lbl">🌊 A maré está chegando…</span>';el.onclick=null;shown="espera"}}
     else{key="idle";if(shown!==key){el.className="tide idle";el.setAttribute("role","button");el.tabIndex=0;
         el.innerHTML='<span class="lbl">🌊 Maré às '+HORA+'h · <b id="tc"></b></span>';el.onclick=cardMare;shown=key}
@@ -1560,14 +1587,26 @@ const TIDE=window.TIDE=(()=>{
   // detalhes da maré do dia: aparecem só quando a pessoa toca no aviso
   function cardMare(){if(state==="run")return;
     showCard(`<div class="k">Maré diária</div><div class="sp" style="font-size:30px">🌊 Às ${HORA}h</div>
-      <p style="margin:6px 0 12px">Começa em <b id="cmc" style="font-family:var(--f-num);color:var(--text)">${fmt(next-new Date())}</b>. Uma vez por dia os bichos caçam uns aos outros por ${DUR} segundos. Informe seu @ para a câmera seguir o seu bicho.</p>
+      <p style="margin:6px 0 12px">Começa em <b id="cmc" style="font-family:var(--f-num);color:var(--text)">${fmt(next-new Date())}</b>. Uma vez por dia os bichos caçam uns aos outros por 2 minutos. Informe seu @ para a câmera seguir o seu bicho.</p>
       <div class="acts" style="flex-direction:column"><button type="button" id="cmMeu">${MEU?"Meu @: "+esc(MEU):"Informar meu @"}</button>
       ${ultima?'<button type="button" class="ghost" id="cmLast">Ver resumo da última maré</button>':""}
       ${LIVE?"":'<button type="button" class="ghost" id="cmGo">Simular maré agora (teste)</button>'}</div>`);
     $("cmMeu").onclick=()=>{const f=MEU&&byName.get(MEU);if(f&&!f.dead)fishCard(f,false);else meuCard()};
-    if(ultima)$("cmLast").onclick=()=>showRecap(ultima);if($("cmGo"))$("cmGo").onclick=()=>{$("card").hidden=true;begin()}}
+    if(ultima)$("cmLast").onclick=()=>showRecap(ultima);if($("cmGo"))$("cmGo").onclick=()=>{$("card").hidden=true;agendado=NOW+10}}
+  // suspense: nos últimos 12 segundos aparece a contagem na tela (e o som sobe, se estiver ligado)
+  let agendado=0,ctS=-1;
+  function contagem(ms){const el=$("contagem");if(ms<=0||ms>12000){if(ctS>=0&&!el.classList.contains("go")){el.hidden=true}ctS=-1;return}
+    const sN=Math.ceil(ms/1000);if(sN===ctS)return;
+    if(ctS<0){el.hidden=false;el.classList.remove("go");$("ctT").textContent="A maré está chegando";if(window.SOM)SOM.suspense(ms/1000);
+      const b=$("ctSom");b.hidden=!!(window.SOM&&SOM.ligado);b.onclick=()=>{try{SOM.toggle();b.hidden=true;SOM.suspense(Math.max(.5,ms/1000-1))}catch(e){}}}
+    ctS=sN;const n=$("ctN");n.textContent=sN;n.classList.remove("bate");void n.offsetWidth;n.classList.add("bate");
+    $("ctS").textContent=sN>8?"Os predadores estão acordando…":sN>4?"Cada um no seu lugar…":"Segura!";if(window.SOM)SOM.tique(sN<=3)}
+  function comecou(){const el=$("contagem");ctS=-1;el.hidden=false;el.classList.add("go");$("ctT").textContent="";$("ctN").textContent="🌊 Começou!";$("ctS").textContent="";$("ctSom").hidden=true;
+    setTimeout(()=>{el.hidden=true;el.classList.remove("go")},1600);if(window.SOM)SOM.musica(true)}
   let acc=0;
   function update(dt){
+    if(state!=="run"){let ms=-1;if(LIVE){if(pend)ms=pend.start-Date.now()}else if(agendado)ms=(agendado-NOW)*1000;else if(state==="idle")ms=next-new Date();contagem(ms)}
+    if(agendado&&NOW>=agendado&&state!=="run"){agendado=0;begin()}
     if(state==="run"){while(i<ev.length&&start+ev[i].t<=NOW)handle(ev[i++]);if(NOW>start+DUR+2&&i>=ev.length&&!removals.length)finish()}
     for(let k=removals.length-1;k>=0;k--)if(NOW>removals[k].at){const r=removals.splice(k,1)[0];bury(r)}
     if(LIVE){if(state!=="run"&&pend&&Date.now()>=pend.start)beginLive(pend);
@@ -1764,6 +1803,28 @@ function avisoAceleracao(certo){
 
 /* ---------- modo ao vivo: dados reais vindos do robô ---------- */
 let ASSASSINOS={},novosDesde=0;
+/* ---------- modos da maré (só visual: a luta já foi calculada) ---------- */
+function esconderijo(f){let best=null,bd=1e9;const ix=(f.x+256)>>4,iz=(f.z+256)>>4;
+  for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++){const X=ix+dx,Z=iz+dz;if(X<0||Z<0||X>=OBN||Z>=OBN)continue;const c=OBL[X*OBN+Z];if(!c)continue;
+    for(const o of c){const d=(o.x-f.x)**2+(o.z-f.z)**2;if(d<bd){bd=d;best=o}}}
+  if(best){const dx=f.x-best.x,dz=f.z-best.z,d=Math.hypot(dx,dz)||1,r=best.r+1+f.L*.4,x=best.x+dx/d*r,z=best.z+dz/d*r;
+    return {x,z,y:floorH(x,z)+Math.min(Math.max(1.2,(best.top-floorH(x,z))*.4),3)+f.L*.15}}
+  return {x:f.x,z:f.z,y:floorH(f.x,f.z)+1.2+f.L*.15}}
+function alvoModo(f){
+  if(f.modo==="e"){const h=f.esc;if(!h)return null;return [h.x+(Math.random()-.5)*2.5,h.y+(Math.random()-.5)*.6,h.z+(Math.random()-.5)*2.5,R(2,4)]}
+  if(f.modo==="a"){const tr=(MARE.STATS[f.s.id]||{tier:1}).tier;let best=null,bd=3600;
+    for(let k=0;k<8;k++){const o=fish[(Math.random()*fish.length)|0];if(!o||o===f||o.dead)continue;if(((MARE.STATS[o.s.id]||{tier:1}).tier)>tr)continue;const d=(o.x-f.x)**2+(o.z-f.z)**2;if(d<bd){bd=d;best=o}}
+    if(best)return [best.x,Math.max(BY0+1,best.y),best.z,R(1.5,3)];
+    const a=Math.random()*6.28,r=R(15,30);return [Math.max(-BX,Math.min(BX,f.x+Math.cos(a)*r)),R(BY0+2,BY1-4),Math.max(BZ0,Math.min(BZ1,f.z+Math.sin(a)*r)),R(1.5,3)]}
+  if(f.modo==="c"){const o=f.par&&byName.get(f.par);if(o&&!o.dead)return [o.x+(Math.random()-.5)*4,o.y+(Math.random()-.5)*1.5,o.z+(Math.random()-.5)*4,R(1,2)]}
+  return null}
+function modoMare(mod){if(!mod)return;const liga=(n,m)=>{const f=byName.get(n);if(f&&!f.dead){f.modo=m;f.tt=-1;return f}};
+  for(const n of mod.a||[])liga(n,"a");for(const n of mod.e||[]){const f=liga(n,"e");if(f)f.esc=esconderijo(f)}for(const [n,p] of mod.c||[]){const f=liga(n,"c");if(f)f.par=p}}
+function fimModo(){for(const f of fish)if(f.modo){f.modo=null;f.esc=null;f.par=null;f.tt=-1}}
+// alerta forte na tela (seu bicho, ou o bicho que você está seguindo)
+let perigoT=0;
+function perigo(tipo,txt,sub){if(QUIET)return;const b=$("banner"),v=$("vinheta");b.className="banner "+tipo;b.innerHTML="<b></b><small></small>";b.firstChild.textContent=txt;b.lastChild.textContent=sub;b.hidden=false;
+  v.className="vinheta "+tipo;v.hidden=false;clearTimeout(perigoT);perigoT=setTimeout(()=>{b.hidden=true;v.hidden=true},4200);if(tipo==="caca"&&window.SOM)SOM.alarme()}
 /* ---------- pérolas: carteira por @ (vem do robô; no protótipo é calculada aqui) ---------- */
 let CARTEIRA={};const PE=MARE.PEROLAS;
 const cartDe=n=>CARTEIRA[n]||{p:0,s:0};
@@ -1890,6 +1951,7 @@ const SOM=window.SOM=(()=>{
   function toggle(){if(!ac)start();on=!on;if(on)ac.resume();
     master.gain.cancelScheduledValues(ac.currentTime);master.gain.setTargetAtTime(on?.9:0,ac.currentTime,.4);
     if(!on)setTimeout(()=>{if(!on)ac.suspend()},1500);
+    if(on&&window.TIDE&&TIDE.running)setTimeout(()=>musica(true),300);if(!on)musica(false);
     const b=document.getElementById("snd");b.innerHTML=on?"<span>♪</span>Desligar som":"<span>♪</span>Ligar som";b.setAttribute("aria-pressed",on)}
   document.addEventListener("visibilitychange",()=>{if(!ac||!on)return;document.hidden?ac.suspend():ac.resume()});
   function mordida(vol,p){if(!on||vol<=0)return;const t=ac.currentTime,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain(),pn=pan(p);
@@ -1897,7 +1959,44 @@ const SOM=window.SOM=(()=>{
     const o=ac.createOscillator(),og=ac.createGain();o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(50,t+.15);env(og,t,.005,.5*vol,.18);o.connect(og);og.connect(pn);o.start(t);o.stop(t+.25)}
   function morte(vol){if(!on||vol<=0)return;const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();o.type="triangle";
     o.frequency.setValueAtTime(330,t);o.frequency.exponentialRampToValueAtTime(70,t+.9);env(g,t,.02,.18*vol,.9);o.connect(g);g.connect(master);g.connect(wet);o.start(t);o.stop(t+1);bolhas(.12*vol,0)}
-  return {toggle,tick,entrada,mordida,morte};
+  // ===== trilha da maré (gerada aqui, sem arquivo de áudio) =====
+  // bumbo grave, como batida de coração
+  function bumbo(t,v,dest){const o=ac.createOscillator(),g=ac.createGain();o.type="sine";o.frequency.setValueAtTime(120,t);o.frequency.exponentialRampToValueAtTime(40,t+.18);
+    env(g,t,.004,v,.32);o.connect(g);g.connect(dest||master);o.start(t);o.stop(t+.4)}
+  // contagem: um "tum" por segundo (dois nos 3 últimos)
+  function tique(forte){if(!on)return;const t=ac.currentTime;bumbo(t,forte?.55:.35);if(forte)bumbo(t+.18,.3)}
+  // subida de tensão até o começo, com pancada no final
+  function suspense(sec){if(!on)return;const t=ac.currentTime,T=Math.max(.5,sec);
+    const n=ac.createBufferSource();n.buffer=noiseBuf(Math.ceil(T)+1,false);const bp=ac.createBiquadFilter();bp.type="bandpass";bp.Q.value=4;
+    bp.frequency.setValueAtTime(250,t);bp.frequency.exponentialRampToValueAtTime(3200,t+T);const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.16,t+T);g.gain.linearRampToValueAtTime(0,t+T+.05);
+    n.connect(bp);bp.connect(g);g.connect(master);g.connect(wet);n.start(t);n.stop(t+T+.1);
+    const o=ac.createOscillator(),og=ac.createGain();o.type="sawtooth";o.frequency.setValueAtTime(55,t);o.frequency.exponentialRampToValueAtTime(220,t+T);
+    const lp=ac.createBiquadFilter();lp.type="lowpass";lp.frequency.value=600;og.gain.setValueAtTime(0,t);og.gain.linearRampToValueAtTime(.08,t+T);og.gain.linearRampToValueAtTime(0,t+T+.05);
+    o.connect(lp);lp.connect(og);og.connect(master);o.start(t);o.stop(t+T+.1);
+    const te=t+T;bumbo(te,1);const nb=ac.createBufferSource();nb.buffer=noiseBuf(1.2,true);const ng=ac.createGain();env(ng,te,.01,.7,1.1);nb.connect(ng);ng.connect(master);ng.connect(wet);nb.start(te)}
+  // alarme curto quando o seu bicho é caçado
+  function alarme(){if(!on)return;const t=ac.currentTime;for(let k=0;k<2;k++){const o=ac.createOscillator(),g=ac.createGain();o.type="square";o.frequency.setValueAtTime(k?660:880,t+k*.16);
+    env(g,t+k*.16,.005,.05,.14);o.connect(g);g.connect(master);o.start(t+k*.16);o.stop(t+k*.16+.2)}}
+  // música da batalha: baixo em ostinato, batida de coração, chimbal e cordas tensas que entram aos poucos
+  let mus=null;const BAIXO=[55,55,65.41,55,55,82.41,55,49];const CORDA=[440,466.16,440,523.25,440,466.16,415.3,392];
+  function musica(liga){if(!liga){if(!mus)return;const m=mus;mus=null;clearInterval(m.timer);const t=ac.currentTime;m.bus.gain.cancelScheduledValues(t);m.bus.gain.setTargetAtTime(0,t,.6);
+      bumbo(t+.05,.9);setTimeout(()=>{for(const o of m.pad)try{o.stop()}catch(e){}m.bus.disconnect()},3500);return}
+    if(mus||!on||!ac)return;const t0=ac.currentTime+.05,bus=ac.createGain();bus.gain.setValueAtTime(0,t0);bus.gain.linearRampToValueAtTime(.34,t0+2);bus.connect(master);
+    const lp=ac.createBiquadFilter();lp.type="lowpass";lp.frequency.value=420;lp.Q.value=5;lp.connect(bus);const pad=[];
+    for(const [f,d] of [[55,-9],[55,9],[82.41,0],[65.41,5]]){const o=ac.createOscillator(),g=ac.createGain();o.type="sawtooth";o.frequency.value=f;o.detune.value=d;g.gain.value=.045;o.connect(g);g.connect(lp);o.start(t0);pad.push(o)}
+    const lfo=ac.createOscillator(),lg=ac.createGain();lfo.frequency.value=.11;lg.gain.value=160;lfo.connect(lg);lg.connect(lp.frequency);lfo.start(t0);pad.push(lfo);
+    mus={bus,lp,pad,t0,step:0,next:t0};mus.timer=setInterval(agenda,90)}
+  function agenda(){if(!mus||!on)return;const spb=60/126/4;
+    while(mus.next<ac.currentTime+.3){const t=mus.next,s=mus.step%16,el=t-mus.t0,b=mus.bus;
+      if(s===0||s===3||s===8||(el>40&&s===11))bumbo(t,s===0?.75:.5,b);
+      if(s%2===0){const f=BAIXO[(mus.step>>1)%8],o=ac.createOscillator(),g=ac.createGain();o.type="sawtooth";o.frequency.value=f;env(g,t,.005,.22,spb*1.4);o.connect(g);g.connect(mus.lp);o.start(t);o.stop(t+spb*2)}
+      if(el>8&&s%2===1){const n=ac.createBufferSource(),hp=ac.createBiquadFilter(),g=ac.createGain();n.buffer=noiseBuf(.05,false);hp.type="highpass";hp.frequency.value=7000;env(g,t,.002,el>45?.07:.04,.035);n.connect(hp);hp.connect(g);g.connect(b);n.start(t)}
+      if(el>28&&s%4===0){const f=CORDA[(mus.step>>2)%8]*(el>75?2:1),o=ac.createOscillator(),g=ac.createGain(),bp=ac.createBiquadFilter();o.type="sawtooth";o.frequency.value=f;bp.type="bandpass";bp.frequency.value=f*2;bp.Q.value=1.5;
+        env(g,t,.02,el>75?.06:.04,spb*3.2);o.connect(bp);bp.connect(g);g.connect(b);g.connect(wet);o.start(t);o.stop(t+spb*4)}
+      mus.next+=spb;mus.step++}
+    // o filtro vai abrindo: a música fica mais intensa conforme a maré avança
+    mus.lp.frequency.setTargetAtTime(420+Math.min(1800,(ac.currentTime-mus.t0)*15),ac.currentTime,.5)}
+  return {toggle,tick,entrada,mordida,morte,tique,suspense,alarme,musica,get ligado(){return on}};
 })();
 document.querySelectorAll("[data-cam]").forEach(b=>b.addEventListener("click",()=>setCam(b.dataset.cam,true)));
 // menu
